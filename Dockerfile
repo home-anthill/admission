@@ -2,7 +2,7 @@
 FROM golang:1.24-alpine AS builder
 RUN apk update && apk add --no-cache \
     protoc \
-    make gcc musl-dev \
+    make gcc musl-dev
 
 # install protoc requirements based on https://grpc.io/docs/languages/go/quickstart/
 RUN go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.6
