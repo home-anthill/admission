@@ -24,7 +24,7 @@ var _ = Describe("KeepAlive", func() {
 	Context("calling keepalive api", func() {
 		It("should return 'ok'", func() {
 			w := httptest.NewRecorder()
-			req, _ := http.NewRequest("GET", "/keepalive", nil)
+			req, _ := http.NewRequest("GET", "/admission/keepalive", nil)
 			router.ServeHTTP(w, req)
 			Expect(http.StatusOK).To(Equal(w.Code))
 

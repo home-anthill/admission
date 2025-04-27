@@ -68,6 +68,6 @@ func RegisterRoutes(ctx context.Context, router *gin.Engine, logger *zap.Sugared
 	register = api.NewRegister(ctx, logger, client, validate)
 
 	// public API called by sensors and devices to register themselves
-	router.POST("/register", register.PostRegister)
-	router.GET("/keepalive", keepAlive.GetKeepAlive)
+	router.POST("/admission/register", register.PostRegister)
+	router.GET("/admission/keepalive", keepAlive.GetKeepAlive)
 }
