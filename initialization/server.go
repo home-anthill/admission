@@ -2,6 +2,8 @@ package initialization
 
 import (
 	"admission/api"
+	"os"
+
 	"github.com/gin-contrib/cors"
 	limits "github.com/gin-contrib/size"
 	"github.com/gin-gonic/contrib/gzip"
@@ -10,7 +12,6 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.uber.org/zap"
 	"golang.org/x/net/context"
-	"os"
 )
 
 var register *api.Register

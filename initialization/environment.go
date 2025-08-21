@@ -1,10 +1,11 @@
 package initialization
 
 import (
-	"github.com/joho/godotenv"
-	"go.uber.org/zap"
 	"os"
 	"regexp"
+
+	"github.com/joho/godotenv"
+	"go.uber.org/zap"
 )
 
 const projectDirName = "admission"
