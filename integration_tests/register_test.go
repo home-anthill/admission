@@ -352,6 +352,146 @@ var _ = Describe("Register", func() {
 			})
 		})
 
+		When("registering a new hybrid device (device + sensor)", func() {
+			It("should return a success", func() {
+				By("with an existing profile with a valid apiToken")
+				err := testuutils.InsertOne(ctx, collProfiles, profile)
+				Expect(err).ShouldNot(HaveOccurred())
+
+				featureSensor := api.FeatureReq{
+					Type:   "sensor",
+					Name:   "temperature",
+					Enable: true,
+					Order:  1,
+					Unit:   "°C",
+				}
+				featureDevice := api.FeatureReq{
+					Type:   "controller",
+					Name:   "setpoint", // setpoint of a thermostat
+					Enable: true,
+					Order:  2,
+					Unit:   "-",
+				}
+				hybridRegisterReq := api.DeviceRegisterReq{
+					Mac:          "11:22:33:44:55:66",
+					Manufacturer: "test",
+					Model:        "test-model",
+					APIToken:     profile.APIToken,
+					Features:     []api.FeatureReq{featureSensor, featureDevice},
+				}
+				var buf bytes.Buffer
+				err = json.NewEncoder(&buf).Encode(hybridRegisterReq)
+				Expect(err).ShouldNot(HaveOccurred())
+
+				recorder := httptest.NewRecorder()
+				req := httptest.NewRequest(http.MethodPost, "/admission/register", &buf)
+				req.Header.Add("Content-Type", `application/json`)
+				router.ServeHTTP(recorder, req)
+				Expect(recorder.Code).To(Equal(http.StatusOK))
+				var device models.Device
+				err = json.Unmarshal(recorder.Body.Bytes(), &device)
+				Expect(err).ShouldNot(HaveOccurred())
+
+				Expect([]byte(device.ID.Hex())).To(HaveLen(24))
+				Expect([]byte(device.UUID)).To(HaveLen(36))
+				Expect(device.Mac).To(Equal(hybridRegisterReq.Mac))
+				Expect(device.Manufacturer).To(Equal(hybridRegisterReq.Manufacturer))
+				Expect(device.Model).To(Equal(hybridRegisterReq.Model))
+				Expect(device.Features).To(HaveLen(len(hybridRegisterReq.Features)))
+				for _, featureRes := range device.Features {
+					if featureRes.Type == "controller" {
+						Expect([]byte(featureRes.UUID)).To(HaveLen(36))
+						Expect(featureRes.Type).To(Equal(featureDevice.Type))
+						Expect(featureRes.Name).To(Equal(featureDevice.Name))
+						Expect(featureRes.Enable).To(Equal(featureDevice.Enable))
+						Expect(featureRes.Order).To(Equal(featureDevice.Order))
+						Expect(featureRes.Unit).To(Equal(featureDevice.Unit))
+					} else if featureRes.Type == "sensor" {
+						Expect([]byte(featureRes.UUID)).To(HaveLen(36))
+						Expect(featureRes.Type).To(Equal(featureSensor.Type))
+						Expect(featureRes.Name).To(Equal(featureSensor.Name))
+						Expect(featureRes.Enable).To(Equal(featureSensor.Enable))
+						Expect(featureRes.Order).To(Equal(featureSensor.Order))
+						Expect(featureRes.Unit).To(Equal(featureSensor.Unit))
+					}
+				}
+			})
+
+			It("should return a 409 if the hybrid device is already registered", func() {
+				By("with an existing profile with a valid apiToken")
+				err := testuutils.InsertOne(ctx, collProfiles, profile)
+				Expect(err).ShouldNot(HaveOccurred())
+
+				featureSensor := api.FeatureReq{
+					Type:   "sensor",
+					Name:   "temperature",
+					Enable: true,
+					Order:  1,
+					Unit:   "°C",
+				}
+				featureDevice := api.FeatureReq{
+					Type:   "controller",
+					Name:   "setpoint", // setpoint of a thermostat
+					Enable: true,
+					Order:  2,
+					Unit:   "-",
+				}
+				hybridRegisterReq := api.DeviceRegisterReq{
+					Mac:          "11:22:33:44:55:66",
+					Manufacturer: "test",
+					Model:        "test-model",
+					APIToken:     profile.APIToken,
+					Features:     []api.FeatureReq{featureSensor, featureDevice},
+				}
+				var buf bytes.Buffer
+				err = json.NewEncoder(&buf).Encode(hybridRegisterReq)
+				Expect(err).ShouldNot(HaveOccurred())
+
+				recorder := httptest.NewRecorder()
+				req := httptest.NewRequest(http.MethodPost, "/admission/register", &buf)
+				req.Header.Add("Content-Type", `application/json`)
+				router.ServeHTTP(recorder, req)
+				Expect(recorder.Code).To(Equal(http.StatusOK))
+				var device models.Device
+				err = json.Unmarshal(recorder.Body.Bytes(), &device)
+				Expect(err).ShouldNot(HaveOccurred())
+
+				Expect([]byte(device.ID.Hex())).To(HaveLen(24))
+				Expect([]byte(device.UUID)).To(HaveLen(36))
+				Expect(device.Mac).To(Equal(hybridRegisterReq.Mac))
+				Expect(device.Manufacturer).To(Equal(hybridRegisterReq.Manufacturer))
+				Expect(device.Model).To(Equal(hybridRegisterReq.Model))
+				Expect(device.Features).To(HaveLen(len(hybridRegisterReq.Features)))
+				for _, featureRes := range device.Features {
+					if featureRes.Type == "controller" {
+						Expect([]byte(featureRes.UUID)).To(HaveLen(36))
+						Expect(featureRes.Type).To(Equal(featureDevice.Type))
+						Expect(featureRes.Name).To(Equal(featureDevice.Name))
+						Expect(featureRes.Enable).To(Equal(featureDevice.Enable))
+						Expect(featureRes.Order).To(Equal(featureDevice.Order))
+						Expect(featureRes.Unit).To(Equal(featureDevice.Unit))
+					} else if featureRes.Type == "sensor" {
+						Expect([]byte(featureRes.UUID)).To(HaveLen(36))
+						Expect(featureRes.Type).To(Equal(featureSensor.Type))
+						Expect(featureRes.Name).To(Equal(featureSensor.Name))
+						Expect(featureRes.Enable).To(Equal(featureSensor.Enable))
+						Expect(featureRes.Order).To(Equal(featureSensor.Order))
+						Expect(featureRes.Unit).To(Equal(featureSensor.Unit))
+					}
+				}
+
+				var buf2 bytes.Buffer
+				err = json.NewEncoder(&buf2).Encode(hybridRegisterReq)
+				Expect(err).ShouldNot(HaveOccurred())
+				recorder = httptest.NewRecorder()
+				req = httptest.NewRequest(http.MethodPost, "/admission/register", &buf2)
+				req.Header.Add("Content-Type", `application/json`)
+				router.ServeHTTP(recorder, req)
+				Expect(recorder.Code).To(Equal(http.StatusConflict))
+				Expect(recorder.Body.String()).To(Equal(`{"message":"Already registered"}`))
+			})
+		})
+
 		When("you pass bad inputs", func() {
 			It("should return an error, if body is missing", func() {
 				err := testuutils.InsertOne(ctx, collProfiles, profile)

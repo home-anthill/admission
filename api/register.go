@@ -65,30 +65,12 @@ type Register struct {
 	validate           *validator.Validate
 }
 
-// ControllerDeviceValidation function
-func ControllerDeviceValidation(sl validator.StructLevel) {
-	deviceReq, _ := sl.Current().Interface().(DeviceRegisterReq)
-	var isController = false
-	for _, feature := range deviceReq.Features {
-		if feature.Type == models.Controller {
-			isController = true
-		}
-	}
-	if isController && len(deviceReq.Features) > 1 {
-		sl.ReportError(deviceReq.Features, "features", "Features", "features", "")
-	}
-}
-
 // NewRegister function
 func NewRegister(ctx context.Context, logger *zap.SugaredLogger, client *mongo.Client, validate *validator.Validate) *Register {
 	grpcURL := os.Getenv("GRPC_URL")
 	sensorServerURL := os.Getenv("HTTP_SENSOR_SERVER") + ":" + os.Getenv("HTTP_SENSOR_PORT")
 	keepAliveSensorURL := sensorServerURL + os.Getenv("HTTP_SENSOR_KEEPALIVE_API")
 	registerSensorURL := sensorServerURL + os.Getenv("HTTP_SENSOR_REGISTER_API")
-
-	// add custom validators
-	// validator to check that a controller device can have only one feature
-	validate.RegisterStructValidation(ControllerDeviceValidation, DeviceRegisterReq{})
 
 	return &Register{
 		client:             client,
@@ -146,15 +128,6 @@ func (handler *Register) PostRegister(c *gin.Context) {
 		return
 	}
 
-	isController := false
-	for _, feature := range registerBody.Features {
-		if feature.Type == models.Controller {
-			isController = true
-		}
-	}
-
-	handler.logger.Debugf("REST - PostRegister - registering device, isController = %v", isController)
-
 	insertDate := time.Now()
 	device = models.Device{}
 	device.ID = primitive.NewObjectID()
@@ -164,7 +137,6 @@ func (handler *Register) PostRegister(c *gin.Context) {
 	device.Model = registerBody.Model
 	device.CreatedAt = insertDate
 	device.ModifiedAt = insertDate
-
 	device.Features = utils.MapSlice(registerBody.Features, func(fReq FeatureReq) models.Feature {
 		return models.Feature{
 			UUID:   uuid.NewString(),
@@ -176,48 +148,56 @@ func (handler *Register) PostRegister(c *gin.Context) {
 		}
 	})
 
-	// if it's a controller device => call gRPC
-	// otherwise REST call to sensor service
-	if isController {
-		status, message, err := handler.registerControllerViaGRPC(&device, &profileFound)
-		if err != nil {
-			handler.logger.Errorf("REST - PostRegister - cannot register controller device via gRPC. Err %v\n", err)
-			if re, ok := err.(*customerrors.ErrorWrapper); ok {
+	controllers := utils.Filter(device.Features, func(f models.Feature) bool { return f.Type == models.Controller })
+	sensors := utils.Filter(device.Features, func(f models.Feature) bool { return f.Type == models.Sensor })
+	handler.logger.Debugf("REST - PostRegister - controllers %v", controllers)
+	handler.logger.Debugf("REST - PostRegister - sensors %v", sensors)
+
+	// register controllers via gRPC
+	if len(controllers) > 0 {
+		_, _, errRegister := handler.registerControllersViaGRPC(&device, controllers, &profileFound)
+		if errRegister != nil {
+			handler.logger.Errorf("REST - PostRegister - cannot register controller device via gRPC. Err %v\n", errRegister)
+			if re, ok := errRegister.(*customerrors.ErrorWrapper); ok {
 				handler.logger.Errorf("REST - PostRegister - cannot register device with status = %d, message = %s\n", re.Code, re.Message)
 			}
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Cannot register controller device"})
 			return
 		}
-		handler.logger.Infof("REST - PostRegister - controller device registered with status = %s, message = %s\n", status, message)
-	} else {
-		err := handler.registerSensorViaHTTP(&device, &profileFound)
-		if err != nil {
-			handler.logger.Errorf("REST - PostRegister - cannot register sensor device via HTTP. Err %v\n", err)
-			if re, ok := err.(*customerrors.ErrorWrapper); ok {
+		handler.logger.Debug("REST - PostRegister - controller devices registered")
+	}
+
+	// register sensors via REST
+	if len(sensors) > 0 {
+		errRegister := handler.registerSensorsViaHTTP(&device, sensors, &profileFound)
+		if errRegister != nil {
+			handler.logger.Errorf("REST - PostRegister - cannot register sensor device via HTTP. Err %v\n", errRegister)
+			if re, ok := errRegister.(*customerrors.ErrorWrapper); ok {
 				handler.logger.Errorf("REST - PostRegister - cannot register device with status = %d, message = %s\n", re.Code, re.Message)
 			}
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Cannot register sensor device"})
 			return
 		}
-		handler.logger.Info("REST - PostRegister - sensor device registered successfully")
+		handler.logger.Debug("REST - PostRegister - sensor devices registered successfully")
+	}
+
+	// Insert device into admission database
+	errInsDb := handler.insertDevice(&device, &profileFound)
+	if errInsDb != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Cannot register device"})
+		return
 	}
 
 	handler.logger.Debugf("REST - PostRegister - registered device = %#v", device)
 	c.JSON(http.StatusOK, device)
 }
 
-func (handler *Register) registerSensorViaHTTP(device *models.Device, profileFound *models.Profile) error {
+func (handler *Register) registerSensorsViaHTTP(device *models.Device, sensorFeatures []models.Feature, profileFound *models.Profile) error {
 	// check if service is available calling keep-alive
 	// TODO remove this in a production code
 	_, _, keepAliveErr := utils.Get(handler.keepAliveSensorURL)
 	if keepAliveErr != nil {
 		return customerrors.Wrap(http.StatusInternalServerError, keepAliveErr, "Cannot call keepAlive of remote register service")
-	}
-
-	// Insert device into admission database
-	errInsDb := handler.insertDevice(device, profileFound)
-	if errInsDb != nil {
-		return customerrors.Wrap(http.StatusInternalServerError, errInsDb, "Cannot insert the new device")
 	}
 
 	// do the real call to the remote registration service
@@ -234,7 +214,7 @@ func (handler *Register) registerSensorViaHTTP(device *models.Device, profileFou
 		return customerrors.Wrap(http.StatusInternalServerError, err, "Cannot create payload to register sensor service")
 	}
 
-	for _, feature := range device.Features {
+	for _, feature := range sensorFeatures {
 		_, _, err := utils.Post(handler.registerSensorURL+feature.Name, payloadJSON)
 		if err != nil {
 			return customerrors.Wrap(http.StatusInternalServerError, err, "Cannot register sensor device feature "+feature.Name)
@@ -244,24 +224,22 @@ func (handler *Register) registerSensorViaHTTP(device *models.Device, profileFou
 	return nil
 }
 
-func (handler *Register) registerControllerViaGRPC(device *models.Device, profileFound *models.Profile) (string, string, error) {
-	handler.logger.Info("gRPC - registerControllerViaGRPC - Sending register via gRPC...")
+func (handler *Register) registerControllersViaGRPC(device *models.Device, controllerFeatures []models.Feature, profileFound *models.Profile) (string, string, error) {
+	handler.logger.Info("gRPC - registerControllersViaGRPC - Sending register via gRPC...")
 	// Set up a connection to the gRPC server.
 	securityDialOption, isSecure, err := utils.BuildSecurityDialOption()
 	if err != nil {
 		return "", "", customerrors.Wrap(http.StatusInternalServerError, err, "Cannot create securityDialOption to prepare the gRPC connection")
 	}
 	if isSecure {
-		handler.logger.Debug("registerControllerViaGRPC - GRPC secure enabled!")
+		handler.logger.Debug("registerControllersViaGRPC - GRPC secure enabled!")
 	} else {
-		handler.logger.Info("registerControllerViaGRPC - GRPC secure NOT enabled!")
+		handler.logger.Info("registerControllersViaGRPC - GRPC secure NOT enabled!")
 	}
-
-	handler.logger.Debugf("gRPC - registerControllerViaGRPC - handler.grpcTarget = %s", handler.grpcTarget)
 
 	conn, err := grpc.NewClient(handler.grpcTarget, securityDialOption)
 	if err != nil {
-		handler.logger.Error("gRPC - registerControllerViaGRPC - cannot connect via gRPC", err)
+		handler.logger.Error("gRPC - registerControllersViaGRPC - cannot connect via gRPC", err)
 		return "", "", customerrors.GrpcSendError{
 			Status:  customerrors.ConnectionError,
 			Message: "Cannot connect to api-devices",
@@ -274,29 +252,33 @@ func (handler *Register) registerControllerViaGRPC(device *models.Device, profil
 	// I reach this point only if I can connect to gRPC SERVER
 	// -------------------------------------------------------
 
-	// Insert device into admission database
-	errInsDb := handler.insertDevice(device, profileFound)
-	if errInsDb != nil {
-		return "", "", customerrors.Wrap(http.StatusInternalServerError, errInsDb, "Cannot insert the new device")
-	}
-
-	// Contact the server and print out its response.
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 	defer cancel()
-	r, err := client.Register(ctx, &register.RegisterRequest{
-		Id:             device.ID.Hex(),
-		Uuid:           device.UUID,
-		Mac:            device.Mac,
-		Name:           device.Features[0].Name,
-		Manufacturer:   device.Manufacturer,
-		Model:          device.Model,
-		ProfileOwnerId: profileFound.ID.Hex(),
-		ApiToken:       profileFound.APIToken,
-	})
-	if err != nil {
-		return "", "", customerrors.Wrap(http.StatusInternalServerError, err, "Cannot invoke Register via gRPC")
+	for _, feature := range controllerFeatures {
+		// Contact the server and print out its response.
+		_, err := client.Register(ctx, &register.RegisterRequest{
+			Id:             device.ID.Hex(),
+			Uuid:           device.UUID,
+			Mac:            device.Mac,
+			Manufacturer:   device.Manufacturer,
+			Model:          device.Model,
+			ProfileOwnerId: profileFound.ID.Hex(),
+			ApiToken:       profileFound.APIToken,
+			Feature: &register.RegisterFeature{
+				FeatureUuid: feature.UUID,
+				FeatureName: feature.Name,
+				Enable:      feature.Enable,
+				Order:       int64(feature.Order),
+				Unit:        feature.Unit,
+			},
+		})
+		if err != nil {
+			handler.logger.Error("gRPC - registerControllersViaGRPC - cannot invoke Register via gRPC", err)
+			return "", "", customerrors.Wrap(http.StatusInternalServerError, err, "Cannot invoke Register via gRPC")
+		}
 	}
-	return r.GetStatus(), r.GetMessage(), nil
+
+	return "", "", nil
 }
 
 func (handler *Register) insertDevice(device *models.Device, profile *models.Profile) error {

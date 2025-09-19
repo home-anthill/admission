@@ -8,15 +8,23 @@ service Registration {
   rpc Register (RegisterRequest) returns (RegisterReply) {}
 }
 
+message RegisterFeature {
+  string featureUuid = 1;
+  string featureName = 2;
+  bool enable = 3;
+  int64 order = 4;
+  string unit = 5;
+}
+
 message RegisterRequest {
   string id = 1;
-  string uuid = 2;
+  string uuid = 2; // device uuid
   string mac = 3;
-  string name = 4;
-  string manufacturer = 5;
-  string model = 6;
-  string profileOwnerId = 7;
-  string apiToken = 8;
+  string manufacturer = 4;
+  string model = 5;
+  string profileOwnerId = 6;
+  string apiToken = 7;
+  RegisterFeature feature = 8;
 }
 
 message RegisterReply {
