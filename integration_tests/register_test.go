@@ -115,6 +115,7 @@ var _ = Describe("Register", func() {
 		mux.HandleFunc("/sensors/register/motion", registerHandler)
 		mux.HandleFunc("/sensors/register/airquality", registerHandler)
 		mux.HandleFunc("/sensors/register/airpressure", registerHandler)
+		mux.HandleFunc("/sensors/register/poweroutage", registerHandler)
 		httpListener, errHTTP := net.Listen("tcp", "localhost:8000")
 		logger.Infof("register_test - HTTP client listening at %s", httpListener.Addr().String())
 		Expect(errHTTP).ShouldNot(HaveOccurred())

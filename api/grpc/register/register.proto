@@ -11,20 +11,16 @@ service Registration {
 message RegisterFeature {
   string featureUuid = 1;
   string featureName = 2;
-  bool enable = 3;
-  int64 order = 4;
-  string unit = 5;
 }
 
 message RegisterRequest {
-  string id = 1;
-  string uuid = 2; // device uuid
-  string mac = 3;
-  string manufacturer = 4;
-  string model = 5;
-  string profileOwnerId = 6;
-  string apiToken = 7;
-  RegisterFeature feature = 8;
+  string deviceUuid = 1;
+  string mac = 2;
+  string manufacturer = 3;
+  string model = 4;
+  string profileOwnerId = 5;
+  string apiToken = 6;
+  RegisterFeature feature = 7;
 }
 
 message RegisterReply {

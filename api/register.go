@@ -44,12 +44,13 @@ type DeviceRegisterReq struct {
 
 // SensorRegisterReq struct
 type SensorRegisterReq struct {
-	UUID           string `json:"uuid"`
+	DeviceUuid     string `json:"deviceUuid"`
 	Mac            string `json:"mac"`
 	Manufacturer   string `json:"manufacturer"`
 	Model          string `json:"model"`
 	ProfileOwnerID string `json:"profileOwnerId"`
 	APIToken       string `json:"apiToken"`
+	FeatureUUID    string `json:"featureUuid"`
 }
 
 // Register struct
@@ -200,22 +201,22 @@ func (handler *Register) registerSensorsViaHTTP(device *models.Device, sensorFea
 		return customerrors.Wrap(http.StatusInternalServerError, keepAliveErr, "Cannot call keepAlive of remote register service")
 	}
 
-	// do the real call to the remote registration service
-	payload := SensorRegisterReq{
-		UUID:           device.UUID,
-		Mac:            device.Mac,
-		Manufacturer:   device.Manufacturer,
-		Model:          device.Model,
-		ProfileOwnerID: profileFound.ID.Hex(),
-		APIToken:       profileFound.APIToken,
-	}
-	payloadJSON, err := json.Marshal(payload)
-	if err != nil {
-		return customerrors.Wrap(http.StatusInternalServerError, err, "Cannot create payload to register sensor service")
-	}
-
 	for _, feature := range sensorFeatures {
-		_, _, err := utils.Post(handler.registerSensorURL+feature.Name, payloadJSON)
+		payload := SensorRegisterReq{
+			DeviceUuid:     device.UUID,
+			Mac:            device.Mac,
+			Manufacturer:   device.Manufacturer,
+			Model:          device.Model,
+			ProfileOwnerID: profileFound.ID.Hex(),
+			APIToken:       profileFound.APIToken,
+			FeatureUUID:    feature.UUID,
+		}
+		payloadJSON, err := json.Marshal(payload)
+		if err != nil {
+			return customerrors.Wrap(http.StatusInternalServerError, err, "Cannot create payload to register sensor service")
+		}
+		// do the real call to the remote registration service
+		_, _, err = utils.Post(handler.registerSensorURL+feature.Name, payloadJSON)
 		if err != nil {
 			return customerrors.Wrap(http.StatusInternalServerError, err, "Cannot register sensor device feature "+feature.Name)
 		}
@@ -257,8 +258,7 @@ func (handler *Register) registerControllersViaGRPC(device *models.Device, contr
 	for _, feature := range controllerFeatures {
 		// Contact the server and print out its response.
 		_, err := client.Register(ctx, &register.RegisterRequest{
-			Id:             device.ID.Hex(),
-			Uuid:           device.UUID,
+			DeviceUuid:     device.UUID,
 			Mac:            device.Mac,
 			Manufacturer:   device.Manufacturer,
 			Model:          device.Model,
@@ -267,9 +267,6 @@ func (handler *Register) registerControllersViaGRPC(device *models.Device, contr
 			Feature: &register.RegisterFeature{
 				FeatureUuid: feature.UUID,
 				FeatureName: feature.Name,
-				Enable:      feature.Enable,
-				Order:       int64(feature.Order),
-				Unit:        feature.Unit,
 			},
 		})
 		if err != nil {

@@ -25,9 +25,6 @@ type RegisterFeature struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	FeatureUuid   string                 `protobuf:"bytes,1,opt,name=featureUuid,proto3" json:"featureUuid,omitempty"`
 	FeatureName   string                 `protobuf:"bytes,2,opt,name=featureName,proto3" json:"featureName,omitempty"`
-	Enable        bool                   `protobuf:"varint,3,opt,name=enable,proto3" json:"enable,omitempty"`
-	Order         int64                  `protobuf:"varint,4,opt,name=order,proto3" json:"order,omitempty"`
-	Unit          string                 `protobuf:"bytes,5,opt,name=unit,proto3" json:"unit,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -76,37 +73,15 @@ func (x *RegisterFeature) GetFeatureName() string {
 	return ""
 }
 
-func (x *RegisterFeature) GetEnable() bool {
-	if x != nil {
-		return x.Enable
-	}
-	return false
-}
-
-func (x *RegisterFeature) GetOrder() int64 {
-	if x != nil {
-		return x.Order
-	}
-	return 0
-}
-
-func (x *RegisterFeature) GetUnit() string {
-	if x != nil {
-		return x.Unit
-	}
-	return ""
-}
-
 type RegisterRequest struct {
 	state          protoimpl.MessageState `protogen:"open.v1"`
-	Id             string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	Uuid           string                 `protobuf:"bytes,2,opt,name=uuid,proto3" json:"uuid,omitempty"` // device uuid
-	Mac            string                 `protobuf:"bytes,3,opt,name=mac,proto3" json:"mac,omitempty"`
-	Manufacturer   string                 `protobuf:"bytes,4,opt,name=manufacturer,proto3" json:"manufacturer,omitempty"`
-	Model          string                 `protobuf:"bytes,5,opt,name=model,proto3" json:"model,omitempty"`
-	ProfileOwnerId string                 `protobuf:"bytes,6,opt,name=profileOwnerId,proto3" json:"profileOwnerId,omitempty"`
-	ApiToken       string                 `protobuf:"bytes,7,opt,name=apiToken,proto3" json:"apiToken,omitempty"`
-	Feature        *RegisterFeature       `protobuf:"bytes,8,opt,name=feature,proto3" json:"feature,omitempty"`
+	DeviceUuid     string                 `protobuf:"bytes,1,opt,name=deviceUuid,proto3" json:"deviceUuid,omitempty"`
+	Mac            string                 `protobuf:"bytes,2,opt,name=mac,proto3" json:"mac,omitempty"`
+	Manufacturer   string                 `protobuf:"bytes,3,opt,name=manufacturer,proto3" json:"manufacturer,omitempty"`
+	Model          string                 `protobuf:"bytes,4,opt,name=model,proto3" json:"model,omitempty"`
+	ProfileOwnerId string                 `protobuf:"bytes,5,opt,name=profileOwnerId,proto3" json:"profileOwnerId,omitempty"`
+	ApiToken       string                 `protobuf:"bytes,6,opt,name=apiToken,proto3" json:"apiToken,omitempty"`
+	Feature        *RegisterFeature       `protobuf:"bytes,7,opt,name=feature,proto3" json:"feature,omitempty"`
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
 }
@@ -141,16 +116,9 @@ func (*RegisterRequest) Descriptor() ([]byte, []int) {
 	return file_api_grpc_register_register_proto_rawDescGZIP(), []int{1}
 }
 
-func (x *RegisterRequest) GetId() string {
+func (x *RegisterRequest) GetDeviceUuid() string {
 	if x != nil {
-		return x.Id
-	}
-	return ""
-}
-
-func (x *RegisterRequest) GetUuid() string {
-	if x != nil {
-		return x.Uuid
+		return x.DeviceUuid
 	}
 	return ""
 }
@@ -253,22 +221,20 @@ var File_api_grpc_register_register_proto protoreflect.FileDescriptor
 
 const file_api_grpc_register_register_proto_rawDesc = "" +
 	"\n" +
-	" api/grpc/register/register.proto\x12\bregister\"\x97\x01\n" +
+	" api/grpc/register/register.proto\x12\bregister\"U\n" +
 	"\x0fRegisterFeature\x12 \n" +
 	"\vfeatureUuid\x18\x01 \x01(\tR\vfeatureUuid\x12 \n" +
-	"\vfeatureName\x18\x02 \x01(\tR\vfeatureName\x12\x16\n" +
-	"\x06enable\x18\x03 \x01(\bR\x06enable\x12\x14\n" +
-	"\x05order\x18\x04 \x01(\x03R\x05order\x12\x12\n" +
-	"\x04unit\x18\x05 \x01(\tR\x04unit\"\xfa\x01\n" +
-	"\x0fRegisterRequest\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
-	"\x04uuid\x18\x02 \x01(\tR\x04uuid\x12\x10\n" +
-	"\x03mac\x18\x03 \x01(\tR\x03mac\x12\"\n" +
-	"\fmanufacturer\x18\x04 \x01(\tR\fmanufacturer\x12\x14\n" +
-	"\x05model\x18\x05 \x01(\tR\x05model\x12&\n" +
-	"\x0eprofileOwnerId\x18\x06 \x01(\tR\x0eprofileOwnerId\x12\x1a\n" +
-	"\bapiToken\x18\a \x01(\tR\bapiToken\x123\n" +
-	"\afeature\x18\b \x01(\v2\x19.register.RegisterFeatureR\afeature\"A\n" +
+	"\vfeatureName\x18\x02 \x01(\tR\vfeatureName\"\xf6\x01\n" +
+	"\x0fRegisterRequest\x12\x1e\n" +
+	"\n" +
+	"deviceUuid\x18\x01 \x01(\tR\n" +
+	"deviceUuid\x12\x10\n" +
+	"\x03mac\x18\x02 \x01(\tR\x03mac\x12\"\n" +
+	"\fmanufacturer\x18\x03 \x01(\tR\fmanufacturer\x12\x14\n" +
+	"\x05model\x18\x04 \x01(\tR\x05model\x12&\n" +
+	"\x0eprofileOwnerId\x18\x05 \x01(\tR\x0eprofileOwnerId\x12\x1a\n" +
+	"\bapiToken\x18\x06 \x01(\tR\bapiToken\x123\n" +
+	"\afeature\x18\a \x01(\v2\x19.register.RegisterFeatureR\afeature\"A\n" +
 	"\rRegisterReply\x12\x16\n" +
 	"\x06status\x18\x01 \x01(\tR\x06status\x12\x18\n" +
 	"\amessage\x18\x02 \x01(\tR\amessage2P\n" +
