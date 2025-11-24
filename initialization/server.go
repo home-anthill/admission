@@ -2,6 +2,7 @@ package initialization
 
 import (
 	"admission/api"
+	"context"
 	"os"
 
 	"github.com/gin-contrib/cors"
@@ -11,7 +12,6 @@ import (
 	"github.com/go-playground/validator/v10"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.uber.org/zap"
-	"golang.org/x/net/context"
 )
 
 var register *api.Register
