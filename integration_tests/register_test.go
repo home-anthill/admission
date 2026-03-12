@@ -22,8 +22,8 @@ import (
 	"github.com/google/uuid"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	"go.mongodb.org/mongo-driver/bson/primitive"
-	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/v2/bson"
+	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 )
@@ -66,11 +66,11 @@ var _ = Describe("Register", func() {
 
 	currentDate := time.Now()
 	profile := models.Profile{
-		ID:         primitive.NewObjectID(),
+		ID:         bson.NewObjectID(),
 		Github:     dbGithubUserTestmock,
 		APIToken:   uuid.NewString(),
-		Homes:      []primitive.ObjectID{}, // empty slice of ObjectIDs
-		Devices:    []primitive.ObjectID{}, // empty slice of ObjectIDs
+		Homes:      []bson.ObjectID{}, // empty slice of ObjectIDs
+		Devices:    []bson.ObjectID{}, // empty slice of ObjectIDs
 		CreatedAt:  currentDate,
 		ModifiedAt: currentDate,
 	}

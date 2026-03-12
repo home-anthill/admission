@@ -15,11 +15,10 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/go-playground/validator/v10"
 	"github.com/google/uuid"
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
-	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
-	"go.mongodb.org/mongo-driver/mongo/writeconcern"
+	"go.mongodb.org/mongo-driver/v2/bson"
+	"go.mongodb.org/mongo-driver/v2/mongo"
+	"go.mongodb.org/mongo-driver/v2/mongo/options"
+	"go.mongodb.org/mongo-driver/v2/mongo/writeconcern"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 )
@@ -131,7 +130,7 @@ func (handler *Register) PostRegister(c *gin.Context) {
 
 	insertDate := time.Now()
 	device = models.Device{}
-	device.ID = primitive.NewObjectID()
+	device.ID = bson.NewObjectID()
 	device.UUID = uuid.NewString()
 	device.Mac = registerBody.Mac
 	device.Manufacturer = registerBody.Manufacturer
@@ -288,7 +287,7 @@ func (handler *Register) insertDevice(device *models.Device, profile *models.Pro
 	// Defers ending the session after the transaction is committed or ended
 	defer dbSession.EndSession(context.TODO())
 
-	_, errTrans := dbSession.WithTransaction(context.TODO(), func(sessionCtx mongo.SessionContext) (interface{}, error) {
+	_, errTrans := dbSession.WithTransaction(context.TODO(), func(sessionCtx context.Context) (interface{}, error) {
 		// Official `mongo-driver` documentation state: "callback may be run
 		// multiple times during WithTransaction due to retry attempts, so it must be idempotent."
 

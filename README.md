@@ -21,6 +21,7 @@ GitHub releases [HERE](https://github.com/home-anthill/admission/releases)
 
 Versions:
 
+- 12/03/2026 - 3.0.0
 - 25/12/2025 - 2.0.0
 - 02/09/2025 - 1.0.0
 
