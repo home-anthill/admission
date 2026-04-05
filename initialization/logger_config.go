@@ -2,13 +2,14 @@ package initialization
 
 import (
 	"os"
+	"path/filepath"
 
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"gopkg.in/natefinch/lumberjack.v2"
 )
 
-// InitLogger function
+// InitLogger creates and returns a configured sugared logger.
 func InitLogger() *zap.SugaredLogger {
 	// Init logger
 	logger := getLogger()
@@ -44,7 +45,7 @@ func getLogger() *zap.SugaredLogger {
 
 func getLogFileWriter() zapcore.WriteSyncer {
 	lumberJackLogger := &lumberjack.Logger{
-		Filename:   os.Getenv("LOG_FOLDER") + "app.log",
+		Filename:   filepath.Join(os.Getenv("LOG_FOLDER"), "app.log"),
 		MaxSize:    10, // in MB
 		MaxBackups: 5,
 		MaxAge:     30,

@@ -2,7 +2,6 @@ package initialization
 
 import (
 	"admission/api"
-	"context"
 	"os"
 
 	"github.com/gin-contrib/cors"
@@ -14,17 +13,14 @@ import (
 	"go.uber.org/zap"
 )
 
-var register *api.Register
-var keepAlive *api.KeepAlive
-
-// SetupRouter function
+// SetupRouter creates a Gin engine with compression, payload limits, and optional CORS.
 func SetupRouter(logger *zap.SugaredLogger) *gin.Engine {
 	port := os.Getenv("HTTP_PORT")
 	httpServer := os.Getenv("HTTP_SERVER")
 
 	// 1. init oauthCallbackURL, oauthAppCallbackURL and httpOrigin vars
 	httpOrigin := httpServer + ":" + port
-	logger.Info("SetupRouter - httpOrigin is = " + httpOrigin)
+	logger.Infow("SetupRouter", "httpOrigin", httpOrigin)
 
 	// 2. init GIN
 	router := gin.Default()
@@ -32,7 +28,7 @@ func SetupRouter(logger *zap.SugaredLogger) *gin.Engine {
 	router.Use(gzip.Gzip(gzip.DefaultCompression))
 
 	// 4. fix a max POST payload size
-	logger.Info("SetupRouter - set mac POST payload size")
+	logger.Info("SetupRouter - set max POST payload size")
 	router.Use(limits.RequestSizeLimiter(1024 * 1024))
 
 	// 5. Configure CORS
@@ -41,7 +37,7 @@ func SetupRouter(logger *zap.SugaredLogger) *gin.Engine {
 	// - Credentials share disabled
 	// - Preflight requests cached for 12 hours
 	if os.Getenv("HTTP_CORS") == "true" {
-		logger.Warn("SetupRouter - CORS enabled and httpOrigin is = " + httpOrigin)
+		logger.Warnw("SetupRouter - CORS enabled", "httpOrigin", httpOrigin)
 		config := cors.DefaultConfig()
 		config.AllowOrigins = []string{
 			"http://" + os.Getenv("INTERNAL_CLUSTER_PATH"),
@@ -63,12 +59,11 @@ func SetupRouter(logger *zap.SugaredLogger) *gin.Engine {
 	return router
 }
 
-// RegisterRoutes function
-func RegisterRoutes(ctx context.Context, router *gin.Engine, logger *zap.SugaredLogger, validate *validator.Validate, client *mongo.Client) {
-	keepAlive = api.NewKeepAlive(ctx, logger)
-	register = api.NewRegister(ctx, logger, client, validate)
+// RegisterRoutes sets up the HTTP routes for the admission service.
+func RegisterRoutes(router *gin.Engine, logger *zap.SugaredLogger, validate *validator.Validate, client *mongo.Client) {
+	register := api.NewRegister(logger, client, validate)
 
 	// public API called by sensors and devices to register themselves
 	router.POST("/admission/register", register.PostRegister)
-	router.GET("/admission/keepalive", keepAlive.GetKeepAlive)
+	router.GET("/admission/keepalive", api.GetKeepAlive)
 }

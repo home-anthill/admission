@@ -18,7 +18,9 @@ var _ = Describe("KeepAlive", func() {
 	var router *gin.Engine
 
 	BeforeEach(func() {
-		logger, router, _, _ = initialization.Start()
+		var err error
+		logger, router, _, err = initialization.Start()
+		Expect(err).ShouldNot(HaveOccurred())
 		defer logger.Sync()
 	})
 

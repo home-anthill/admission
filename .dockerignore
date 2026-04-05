@@ -1,5 +1,5 @@
 build
-logs
+*.log
 tmp
 coverage
 .dockerignore

@@ -1,17 +1,22 @@
 package utils
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
 	"github.com/go-playground/validator/v10"
 )
 
-// GetErrorMessage create a list with all wrong fields
+// GetErrorMessage creates a list with all wrong fields.
 func GetErrorMessage(err error) string {
-	var errFields = ""
-	for _, err := range err.(validator.ValidationErrors) {
-		errFields += fmt.Sprintf(" %s", strings.ToLower(err.Field()))
+	var validationErrors validator.ValidationErrors
+	if !errors.As(err, &validationErrors) {
+		return " unknown validation error"
 	}
-	return errFields
+	var b strings.Builder
+	for _, fe := range validationErrors {
+		fmt.Fprintf(&b, " %s", strings.ToLower(fe.Field()))
+	}
+	return b.String()
 }

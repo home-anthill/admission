@@ -11,28 +11,31 @@ import (
 	"go.uber.org/zap"
 )
 
-// Start function
-func Start() (*zap.SugaredLogger, *gin.Engine, context.Context, *mongo.Client) {
+// Start initializes all dependencies and returns the logger, router, and DB client.
+func Start() (*zap.SugaredLogger, *gin.Engine, *mongo.Client, error) {
 	// 1. Init logger
 	logger := InitLogger()
-	defer logger.Sync()
 
 	// 2. Init env
-	InitEnv(logger)
+	if err := InitEnv(logger); err != nil {
+		return logger, nil, nil, err
+	}
 
 	// 3. Init db
 	ctx := context.Background()
-	// Connect to DB
-	client := db.InitDb(ctx, logger)
+	client, err := db.InitDb(ctx, logger)
+	if err != nil {
+		return logger, nil, nil, err
+	}
 
 	// 4. Init server
-	router, ctx := BuildServer(ctx, logger, client)
+	router := BuildServer(logger, client)
 
-	return logger, router, ctx, client
+	return logger, router, client, nil
 }
 
 // BuildServer - Exposed only for testing purposes
-func BuildServer(ctx context.Context, logger *zap.SugaredLogger, client *mongo.Client) (*gin.Engine, context.Context) {
+func BuildServer(logger *zap.SugaredLogger, client *mongo.Client) *gin.Engine {
 	// Create a singleton validator instance. Validate is designed to be used as a singleton instance.
 	// It caches information about struct and validations.
 	validate := validator.New()
@@ -43,8 +46,8 @@ func BuildServer(ctx context.Context, logger *zap.SugaredLogger, client *mongo.C
 	// Instantiate GIN and apply some middlewares
 	logger.Info("BuildServer - GIN - Initializing...")
 	router := SetupRouter(logger)
-	RegisterRoutes(ctx, router, logger, validate, client)
-	return router, ctx
+	RegisterRoutes(router, logger, validate, client)
+	return router
 }
 
 func setGinMode() {

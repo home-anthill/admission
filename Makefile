@@ -18,6 +18,11 @@ vet:
 	shadow ./...
 .PHONY:vet
 
+check:
+	# find vulnerabilities
+	govulncheck ./...
+.PHONY:check
+
 proto:
 	protoc api/grpc/*/*.proto \
 			--go_out=. \
@@ -35,9 +40,9 @@ run: proto vet lint
 	air
 .PHONY: run
 
-test: lint
+test: proto vet lint
 	mkdir -p ./coverage
-	ENV=testing go test -v -coverpkg ./... -coverprofile ./coverage/profile.cov ./...
+	ENV=testing go test -v -race -count=1 -coverpkg ./... -coverprofile ./coverage/profile.cov ./...
 	# go tool cover -html ./coverage/profile.cov
 	go tool cover -html ./coverage/profile.cov -o ./coverage/cover.html
 	go-cover-treemap -coverprofile ./coverage/profile.cov > ./coverage/out.svg
@@ -47,6 +52,7 @@ deps:
 	go install golang.org/x/tools/go/analysis/passes/shadow/cmd/shadow@latest
 	go install honnef.co/go/tools/cmd/staticcheck@latest
 	go install github.com/air-verse/air@latest
+	go install golang.org/x/vuln/cmd/govulncheck@latest
 	go get -u
 	go mod tidy
 	go install github.com/nikolaydubina/go-cover-treemap@latest

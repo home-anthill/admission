@@ -2,6 +2,7 @@ package db
 
 import (
 	"context"
+	"fmt"
 	"os"
 
 	"go.mongodb.org/mongo-driver/v2/mongo"
@@ -10,50 +11,45 @@ import (
 	"go.uber.org/zap"
 )
 
-var client *mongo.Client
-
-// Collections struct
+// Collections holds references to MongoDB collections.
 type Collections struct {
 	Profiles *mongo.Collection
 	Devices  *mongo.Collection
 }
 
-// InitDb function
-func InitDb(ctx context.Context, logger *zap.SugaredLogger) *mongo.Client {
+// InitDb connects to MongoDB and returns the client. The caller is responsible
+// for handling connection failures.
+func InitDb(ctx context.Context, logger *zap.SugaredLogger) (*mongo.Client, error) {
 	mongoDBUrl := os.Getenv("MONGODB_URL")
-	logger.Info("InitDb - connecting to MongoDB URL = " + mongoDBUrl)
+	logger.Info("InitDb - connecting to MongoDB")
 
-	// connect to DB
-	var err error
-	client, err = mongo.Connect(options.Client().ApplyURI(mongoDBUrl))
+	client, err := mongo.Connect(options.Client().ApplyURI(mongoDBUrl))
 	if err != nil {
-		logger.Fatalf("Cannot connect to MongoDB: %s", err)
-		panic("Cannot connect to MongoDB")
+		return nil, fmt.Errorf("cannot connect to MongoDB: %w", err)
 	}
 	if os.Getenv("ENV") != "prod" {
-		if err = client.Ping(context.TODO(), readpref.Primary()); err != nil {
-			logger.Fatalf("Cannot ping MongoDB: %s", err)
-			panic("Cannot ping MongoDB")
+		if err = client.Ping(ctx, readpref.Primary()); err != nil {
+			return nil, fmt.Errorf("cannot ping MongoDB: %w", err)
 		}
 	}
 	logger.Info("Connected to MongoDB")
 
-	return client
+	return client, nil
 }
 
-// GetCollections function
+// GetCollections returns handles to the profiles and devices MongoDB collections.
 func GetCollections(client *mongo.Client) *Collections {
+	db := client.Database(getDbName())
 	return &Collections{
-		Profiles: client.Database(getDbName()).Collection("profiles"),
-		Devices:  client.Database(getDbName()).Collection("devices"),
+		Profiles: db.Collection("profiles"),
+		Devices:  db.Collection("devices"),
 	}
 }
 
-// getDbName function
+// getDbName returns the database name based on the current environment.
 func getDbName() string {
 	if os.Getenv("ENV") == "testing" {
 		return "api-server-test"
-	} else {
-		return "api-server"
 	}
+	return "api-server"
 }

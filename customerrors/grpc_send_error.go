@@ -1,21 +1,21 @@
 package customerrors
 
-// Status int
+// Status represents the category of a gRPC send failure.
 type Status int
 
-// ConnectionError and BadParams enums
+// Possible gRPC send error statuses.
 const (
 	ConnectionError Status = iota + 1
 	BadParams
 )
 
-// GrpcSendError struct
+// GrpcSendError represents a failure when sending a gRPC request to a downstream service.
 type GrpcSendError struct {
 	Status  Status
 	Message string
 }
 
-// Error function
+// Error returns the human-readable error message.
 func (se GrpcSendError) Error() string {
 	return se.Message
 }

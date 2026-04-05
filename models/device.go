@@ -6,16 +6,16 @@ import (
 	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
-// Type string
+// Type represents the kind of device feature (controller or sensor).
 type Type string
 
-// Controller and Sensor types
+// Supported feature types.
 const (
 	Controller Type = "controller"
 	Sensor     Type = "sensor"
 )
 
-// Feature struct
+// Feature describes a single capability of a device.
 type Feature struct {
 	UUID   string `json:"uuid" bson:"uuid"`
 	Type   Type   `json:"type" bson:"type"`
@@ -25,7 +25,7 @@ type Feature struct {
 	Unit   string `json:"unit" bson:"unit"`
 }
 
-// Device struct
+// Device represents a registered IoT device with its features and metadata.
 type Device struct {
 	//swagger:ignore
 	ID           bson.ObjectID `json:"id" bson:"_id"`

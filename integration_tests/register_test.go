@@ -6,7 +6,7 @@ import (
 	"admission/db"
 	"admission/initialization"
 	"admission/models"
-	"admission/testuutils"
+	"admission/testutils"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -84,13 +84,17 @@ var _ = Describe("Register", func() {
 	})
 
 	BeforeEach(func() {
-		logger, router, ctx, client = initialization.Start()
+		var err error
+		logger, router, client, err = initialization.Start()
+		Expect(err).ShouldNot(HaveOccurred())
 		defer logger.Sync()
+		ctx = context.Background()
 
 		collProfiles = db.GetCollections(client).Profiles
 		collDevices = db.GetCollections(client).Devices
+		testutils.EnsureCollections(ctx, client, "api-server-test")
 
-		err := os.Setenv("SINGLE_USER_LOGIN_EMAIL", "test@test.com")
+		err = os.Setenv("SINGLE_USER_LOGIN_EMAIL", "test@test.com")
 		Expect(err).ShouldNot(HaveOccurred())
 
 		// --------- start a gRPC server ---------
@@ -101,14 +105,13 @@ var _ = Describe("Register", func() {
 		Expect(errGrpc).ShouldNot(HaveOccurred())
 		logger.Infof("register_test - gRPC client listening at %s", grpcListener.Addr().String())
 		go func() {
-			errGrpc := grpcMockServer.Serve(grpcListener)
-			Expect(errGrpc).ShouldNot(HaveOccurred())
+			_ = grpcMockServer.Serve(grpcListener)
 		}()
 
 		// --------- start an HTTP server ---------
 		//registerResponse := `[{"id": 123412341234123412341234, "code": 200}]`
 		mux := http.NewServeMux()
-		mux.HandleFunc("/keepalive", keepAliveHandler)
+		mux.HandleFunc("/keepalive/", keepAliveHandler)
 		mux.HandleFunc("/sensors/register/temperature", registerHandler)
 		mux.HandleFunc("/sensors/register/humidity", registerHandler)
 		mux.HandleFunc("/sensors/register/light", registerHandler)
@@ -124,15 +127,13 @@ var _ = Describe("Register", func() {
 		// httpListener and replace it with the one we created.
 		httpMockServer.Listener.Close()
 		httpMockServer.Listener = httpListener
-		go func() {
-			httpMockServer.Start()
-		}()
+		httpMockServer.Start()
 	})
 
 	AfterEach(func() {
 		grpcMockServer.Stop()
 		httpMockServer.Close()
-		testuutils.DropAllCollections(ctx, collProfiles, collDevices)
+		testutils.DropAllCollections(ctx, collProfiles, collDevices)
 	})
 
 	Describe("calling register api", func() {
@@ -140,7 +141,7 @@ var _ = Describe("Register", func() {
 
 			It("should return a success", func() {
 				By("with an existing profile with a valid apiToken")
-				err := testuutils.InsertOne(ctx, collProfiles, profile)
+				err := testutils.InsertOne(ctx, collProfiles, profile)
 				Expect(err).ShouldNot(HaveOccurred())
 
 				feature := api.FeatureReq{
@@ -188,7 +189,7 @@ var _ = Describe("Register", func() {
 
 			It("should return a 409 if the device is already registered", func() {
 				By("with an existing profile with a valid apiToken")
-				err := testuutils.InsertOne(ctx, collProfiles, profile)
+				err := testutils.InsertOne(ctx, collProfiles, profile)
 				Expect(err).ShouldNot(HaveOccurred())
 
 				feature := api.FeatureReq{
@@ -248,7 +249,7 @@ var _ = Describe("Register", func() {
 		When("registering a new sensor", func() {
 			It("should return a success", func() {
 				By("with an existing profile with a valid apiToken")
-				err := testuutils.InsertOne(ctx, collProfiles, profile)
+				err := testutils.InsertOne(ctx, collProfiles, profile)
 				Expect(err).ShouldNot(HaveOccurred())
 
 				feature := api.FeatureReq{
@@ -296,7 +297,7 @@ var _ = Describe("Register", func() {
 
 			It("should return a 409 if the sensor is already registered", func() {
 				By("with an existing profile with a valid apiToken")
-				err := testuutils.InsertOne(ctx, collProfiles, profile)
+				err := testutils.InsertOne(ctx, collProfiles, profile)
 				Expect(err).ShouldNot(HaveOccurred())
 
 				feature := api.FeatureReq{
@@ -356,7 +357,7 @@ var _ = Describe("Register", func() {
 		When("registering a new hybrid device (device + sensor)", func() {
 			It("should return a success", func() {
 				By("with an existing profile with a valid apiToken")
-				err := testuutils.InsertOne(ctx, collProfiles, profile)
+				err := testutils.InsertOne(ctx, collProfiles, profile)
 				Expect(err).ShouldNot(HaveOccurred())
 
 				featureSensor := api.FeatureReq{
@@ -420,7 +421,7 @@ var _ = Describe("Register", func() {
 
 			It("should return a 409 if the hybrid device is already registered", func() {
 				By("with an existing profile with a valid apiToken")
-				err := testuutils.InsertOne(ctx, collProfiles, profile)
+				err := testutils.InsertOne(ctx, collProfiles, profile)
 				Expect(err).ShouldNot(HaveOccurred())
 
 				featureSensor := api.FeatureReq{
@@ -495,7 +496,7 @@ var _ = Describe("Register", func() {
 
 		When("you pass bad inputs", func() {
 			It("should return an error, if body is missing", func() {
-				err := testuutils.InsertOne(ctx, collProfiles, profile)
+				err := testutils.InsertOne(ctx, collProfiles, profile)
 				Expect(err).ShouldNot(HaveOccurred())
 				recorder := httptest.NewRecorder()
 				req := httptest.NewRequest(http.MethodPost, "/admission/register", nil)
@@ -506,7 +507,7 @@ var _ = Describe("Register", func() {
 			})
 
 			It("should return an error, if body is not valid", func() {
-				err := testuutils.InsertOne(ctx, collProfiles, profile)
+				err := testutils.InsertOne(ctx, collProfiles, profile)
 				Expect(err).ShouldNot(HaveOccurred())
 
 				feature := api.FeatureReq{
@@ -536,7 +537,7 @@ var _ = Describe("Register", func() {
 			})
 
 			It("should return an error, if apiToken doesn't exist", func() {
-				err := testuutils.InsertOne(ctx, collProfiles, profile)
+				err := testutils.InsertOne(ctx, collProfiles, profile)
 				Expect(err).ShouldNot(HaveOccurred())
 
 				unknownAPIToken := uuid.NewString()
