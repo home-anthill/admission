@@ -140,9 +140,11 @@ func (handler *Register) PostRegister(c *gin.Context) {
 
 	insertDate := time.Now()
 	device = models.Device{
-		ID:           bson.NewObjectID(),
-		UUID:         uuid.NewString(),
-		Mac:          registerBody.Mac,
+		ID:   bson.NewObjectID(),
+		UUID: uuid.NewString(),
+		Mac:  registerBody.Mac,
+		// init by default Name with MAC address
+		Name:         registerBody.Mac,
 		Manufacturer: registerBody.Manufacturer,
 		Model:        registerBody.Model,
 		CreatedAt:    insertDate,

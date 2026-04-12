@@ -50,10 +50,16 @@
 - **Stutter comments replaced with meaningful doc comments**: Updated all `// TypeName struct`-style comments across `customerrors/`, `db/`, `initialization/`, `models/`, and `api/` to describe purpose and behavior.
 
 
+## Features
+
+- **Device `name` field initialized on insert** (`models/device.go`, `api/register.go`): Added a `Name` string field to `models.Device` (stored in MongoDB as `"name"`, excluded from API responses via `json:"-"`). On registration, `Name` is automatically set to the device's MAC address. The field is not accepted or exposed via the REST API.
+
+
 ## Test Improvements
 
 - **`EnsureCollections` helper** (`testutils/db_utils.go`): New helper creates `profiles` and `devices` collections if they don't exist, preventing test failures on a fresh MongoDB instance without a replica-set `create` event.
 - **Keepalive handler route fix** (`integration_tests/register_test.go`): Changed mock HTTP mux pattern from `/keepalive` to `/keepalive/` to match the trailing-slash URL built from env vars.
+- **DB verification for `Name` field** (`integration_tests/register_test.go`): The three success test cases (controller, sensor, hybrid) now query MongoDB directly after registration and assert that `device.Name` equals the registered MAC address.
 
 
 ## Chores

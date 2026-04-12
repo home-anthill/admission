@@ -31,6 +31,7 @@ type Device struct {
 	ID           bson.ObjectID `json:"id" bson:"_id"`
 	UUID         string        `json:"uuid" bson:"uuid"`
 	Mac          string        `json:"mac" bson:"mac"`
+	Name         string        `json:"name" bson:"name"`
 	Manufacturer string        `json:"manufacturer" bson:"manufacturer"`
 	Model        string        `json:"model" bson:"model"`
 	Features     []Feature     `json:"features" bson:"features"`

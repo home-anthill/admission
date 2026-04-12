@@ -185,6 +185,12 @@ var _ = Describe("Register", func() {
 					Expect(featureRes.Order).To(Equal(feature.Order))
 					Expect(featureRes.Unit).To(Equal(feature.Unit))
 				}
+
+				By("verifying that Name is initialized to the MAC address in the DB")
+				var dbDevice models.Device
+				err = collDevices.FindOne(ctx, bson.M{"mac": deviceRegisterReq.Mac}).Decode(&dbDevice)
+				Expect(err).ShouldNot(HaveOccurred())
+				Expect(dbDevice.Name).To(Equal(deviceRegisterReq.Mac))
 			})
 
 			It("should return a 409 if the device is already registered", func() {
@@ -293,6 +299,12 @@ var _ = Describe("Register", func() {
 					Expect(featureRes.Order).To(Equal(feature.Order))
 					Expect(featureRes.Unit).To(Equal(feature.Unit))
 				}
+
+				By("verifying that Name is initialized to the MAC address in the DB")
+				var dbDevice models.Device
+				err = collDevices.FindOne(ctx, bson.M{"mac": sensorRegisterReq.Mac}).Decode(&dbDevice)
+				Expect(err).ShouldNot(HaveOccurred())
+				Expect(dbDevice.Name).To(Equal(sensorRegisterReq.Mac))
 			})
 
 			It("should return a 409 if the sensor is already registered", func() {
@@ -417,6 +429,12 @@ var _ = Describe("Register", func() {
 						Expect(featureRes.Unit).To(Equal(featureSensor.Unit))
 					}
 				}
+
+				By("verifying that Name is initialized to the MAC address in the DB")
+				var dbDevice models.Device
+				err = collDevices.FindOne(ctx, bson.M{"mac": hybridRegisterReq.Mac}).Decode(&dbDevice)
+				Expect(err).ShouldNot(HaveOccurred())
+				Expect(dbDevice.Name).To(Equal(hybridRegisterReq.Mac))
 			})
 
 			It("should return a 409 if the hybrid device is already registered", func() {
