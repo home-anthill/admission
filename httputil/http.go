@@ -12,6 +12,8 @@ var httpClient = &http.Client{
 	Timeout: 10 * time.Second,
 }
 
+const maxResponseBodyBytes = 64 * 1024
+
 // Get performs an HTTP GET request with a timeout.
 func Get(url string) (int, string, error) {
 	response, err := httpClient.Get(url)
@@ -19,7 +21,7 @@ func Get(url string) (int, string, error) {
 		return -1, "", customerrors.Wrap(http.StatusInternalServerError, err, "Cannot call HTTP GET API of the remote service")
 	}
 	defer response.Body.Close()
-	body, err := io.ReadAll(response.Body)
+	body, err := io.ReadAll(io.LimitReader(response.Body, maxResponseBodyBytes))
 	if err != nil {
 		return response.StatusCode, "", customerrors.Wrap(http.StatusInternalServerError, err, "Cannot read HTTP GET response body")
 	}
@@ -34,7 +36,7 @@ func Post(url string, payloadJSON []byte) (int, string, error) {
 		return -1, "", customerrors.Wrap(http.StatusInternalServerError, err, "Cannot call HTTP POST API of the remote service")
 	}
 	defer response.Body.Close()
-	body, err := io.ReadAll(response.Body)
+	body, err := io.ReadAll(io.LimitReader(response.Body, maxResponseBodyBytes))
 	if err != nil {
 		return response.StatusCode, "", customerrors.Wrap(http.StatusInternalServerError, err, "Cannot read HTTP POST response body")
 	}

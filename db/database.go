@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 
+	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
 	"go.mongodb.org/mongo-driver/v2/mongo/readpref"
@@ -32,6 +33,9 @@ func InitDb(ctx context.Context, logger *zap.SugaredLogger) (*mongo.Client, erro
 			return nil, fmt.Errorf("cannot ping MongoDB: %w", err)
 		}
 	}
+	if err = ensureIndexes(ctx, client); err != nil {
+		return nil, fmt.Errorf("cannot ensure MongoDB indexes: %w", err)
+	}
 	logger.Info("Connected to MongoDB")
 
 	return client, nil
@@ -52,4 +56,21 @@ func getDbName() string {
 		return "api-server-test"
 	}
 	return "api-server"
+}
+
+func ensureIndexes(ctx context.Context, client *mongo.Client) error {
+	collections := GetCollections(client)
+	if _, err := collections.Profiles.Indexes().CreateOne(ctx, mongo.IndexModel{
+		Keys:    bson.D{{Key: "apiToken", Value: 1}},
+		Options: options.Index().SetName("profiles_apiToken_unique").SetUnique(true),
+	}); err != nil {
+		return err
+	}
+	if _, err := collections.Devices.Indexes().CreateOne(ctx, mongo.IndexModel{
+		Keys:    bson.D{{Key: "mac", Value: 1}},
+		Options: options.Index().SetName("devices_mac_unique").SetUnique(true),
+	}); err != nil {
+		return err
+	}
+	return nil
 }

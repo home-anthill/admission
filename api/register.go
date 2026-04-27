@@ -10,6 +10,7 @@ import (
 	"admission/utils"
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"os"
 	"time"
@@ -120,6 +121,11 @@ func (handler *Register) PostRegister(c *gin.Context) {
 		"apiToken": registerBody.APIToken,
 	}).Decode(&profileFound)
 	if errProfile != nil {
+		if !errors.Is(errProfile, mongo.ErrNoDocuments) {
+			handler.logger.Errorw("REST - PostRegister - Cannot query profile with that apiToken", "error", errProfile)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Cannot register device"})
+			return
+		}
 		handler.logger.Errorw("REST - PostRegister - Cannot find profile with that apiToken", "error", errProfile)
 		c.JSON(http.StatusBadRequest, gin.H{"error": "cannot register, profile token missing or not valid"})
 		return
@@ -131,10 +137,17 @@ func (handler *Register) PostRegister(c *gin.Context) {
 		"mac": registerBody.Mac,
 	}).Decode(&device)
 	if err == nil {
-		handler.logger.Info("REST - PostRegister - Device already registered")
-		// if err == nil => device found in db (already exists)
-		// skip register process returning "already registered"
+		if profileOwnsDevice(&profileFound, device.ID) {
+			handler.logger.Info("REST - PostRegister - Device already registered for this profile")
+		} else {
+			handler.logger.Warn("REST - PostRegister - Device already registered for another profile")
+		}
 		c.JSON(http.StatusConflict, gin.H{"message": "Already registered"})
+		return
+	}
+	if !errors.Is(err, mongo.ErrNoDocuments) {
+		handler.logger.Errorw("REST - PostRegister - Cannot query existing device by mac", "error", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Cannot register device"})
 		return
 	}
 
@@ -197,6 +210,11 @@ func (handler *Register) PostRegister(c *gin.Context) {
 	// Insert device into admission database
 	errInsDb := handler.insertDevice(ctx, &device, &profileFound)
 	if errInsDb != nil {
+		var wrapped customerrors.ErrorWrapper
+		if errors.As(errInsDb, &wrapped) && wrapped.Code == http.StatusConflict {
+			c.JSON(http.StatusConflict, gin.H{"message": "Already registered"})
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Cannot register device"})
 		return
 	}
@@ -314,6 +332,9 @@ func (handler *Register) insertDevice(ctx context.Context, device *models.Device
 		// Insert device
 		_, errInsert := handler.collDevices.InsertOne(sessionCtx, device)
 		if errInsert != nil {
+			if mongo.IsDuplicateKeyError(errInsert) {
+				return nil, customerrors.Wrap(http.StatusConflict, errInsert, "Device already registered")
+			}
 			return nil, customerrors.Wrap(http.StatusInternalServerError, errInsert, "Cannot insert the new device")
 		}
 		// push device.ID to profile.devices into admission database
@@ -332,4 +353,13 @@ func (handler *Register) insertDevice(ctx context.Context, device *models.Device
 		handler.logger.Errorw("insertDevice - insert device in transaction", "error", errTrans)
 	}
 	return errTrans
+}
+
+func profileOwnsDevice(profile *models.Profile, deviceID bson.ObjectID) bool {
+	for _, profileDeviceID := range profile.Devices {
+		if profileDeviceID == deviceID {
+			return true
+		}
+	}
+	return false
 }

@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026-04-24 Security Hardening
+
+- **Go toolchain vulnerabilities fixed** (`go.mod`, `Dockerfile`): Raised the project Go baseline and Docker builder image from Go 1.26.0/1.26 to Go 1.26.2. `govulncheck ./...` now reports no vulnerabilities.
+- **Duplicate MAC ownership protection** (`api/register.go`): Registration now checks for an existing device by MAC before downstream gRPC/HTTP calls. Duplicate registrations return `409` with the existing generic `{"message":"Already registered"}` response.
+- **Cross-profile device attachment prevented** (`api/register.go`): If a valid profile token tries to register a MAC already owned by another profile, the service returns `409` and does not add that device to the requesting profile.
+- **Duplicate-key race handling** (`api/register.go`): MongoDB duplicate-key errors during insert are now mapped to `409`, covering concurrent registration races that pass the initial read check.
+- **MongoDB uniqueness enforced at startup** (`db/database.go`): Startup now creates unique indexes for `profiles.apiToken` and `devices.mac`. Deployment note: existing duplicate data must be cleaned before rollout, otherwise index creation will fail and startup will stop.
+- **Downstream HTTP response reads capped** (`httputil/http.go`): `Get` and `Post` now read at most 64 KiB from downstream response bodies, preventing memory exhaustion from large responses.
+- **Regression coverage added** (`integration_tests/register_test.go`, `httputil/http_test.go`): Added tests for cross-profile duplicate registration and capped HTTP response bodies.
+
 ## Bug Fixes
 
 - **`Enable: false` rejected by validation** (`api/register.go`): Removed `required` tag on `FeatureReq.Enable` bool field. The `required` validator rejects the zero value (`false`), making it impossible to register a device with `Enable: false`.

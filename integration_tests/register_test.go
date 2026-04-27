@@ -250,6 +250,58 @@ var _ = Describe("Register", func() {
 				Expect(recorder.Code).To(Equal(http.StatusConflict))
 				Expect(recorder.Body.String()).To(Equal(`{"message":"Already registered"}`))
 			})
+
+			It("should not attach an already registered device to another profile", func() {
+				By("with two existing profiles")
+				err := testutils.InsertOne(ctx, collProfiles, profile)
+				Expect(err).ShouldNot(HaveOccurred())
+				otherProfile := profile
+				otherProfile.ID = bson.NewObjectID()
+				otherProfile.APIToken = uuid.NewString()
+				otherProfile.Devices = []bson.ObjectID{}
+				err = testutils.InsertOne(ctx, collProfiles, otherProfile)
+				Expect(err).ShouldNot(HaveOccurred())
+
+				feature := api.FeatureReq{
+					Type:   "controller",
+					Name:   "test",
+					Enable: true,
+					Order:  1,
+					Unit:   "-",
+				}
+				deviceRegisterReq := api.DeviceRegisterReq{
+					Mac:          "11:22:33:44:55:66",
+					Manufacturer: "test",
+					Model:        "test-model",
+					APIToken:     profile.APIToken,
+					Features:     []api.FeatureReq{feature},
+				}
+				var buf bytes.Buffer
+				err = json.NewEncoder(&buf).Encode(deviceRegisterReq)
+				Expect(err).ShouldNot(HaveOccurred())
+
+				recorder := httptest.NewRecorder()
+				req := httptest.NewRequest(http.MethodPost, "/admission/register", &buf)
+				req.Header.Add("Content-Type", `application/json`)
+				router.ServeHTTP(recorder, req)
+				Expect(recorder.Code).To(Equal(http.StatusOK))
+
+				deviceRegisterReq.APIToken = otherProfile.APIToken
+				var buf2 bytes.Buffer
+				err = json.NewEncoder(&buf2).Encode(deviceRegisterReq)
+				Expect(err).ShouldNot(HaveOccurred())
+				recorder = httptest.NewRecorder()
+				req = httptest.NewRequest(http.MethodPost, "/admission/register", &buf2)
+				req.Header.Add("Content-Type", `application/json`)
+				router.ServeHTTP(recorder, req)
+				Expect(recorder.Code).To(Equal(http.StatusConflict))
+				Expect(recorder.Body.String()).To(Equal(`{"message":"Already registered"}`))
+
+				var dbOtherProfile models.Profile
+				err = collProfiles.FindOne(ctx, bson.M{"_id": otherProfile.ID}).Decode(&dbOtherProfile)
+				Expect(err).ShouldNot(HaveOccurred())
+				Expect(dbOtherProfile.Devices).To(BeEmpty())
+			})
 		})
 
 		When("registering a new sensor", func() {

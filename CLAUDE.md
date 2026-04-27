@@ -42,28 +42,29 @@ See `.env_template` for all variables and defaults.
 ## Architecture
 
 - **api/** — HTTP handlers (`register.go`: device registration; `keepalive.go`: device heartbeat) and gRPC proto definitions (`api/grpc/register/`)
-- **db/** — MongoDB connection, collection accessors, transaction support
+- **db/** — MongoDB connection, collection accessors, startup index creation, transaction support
 - **models/** — Data structures: `Device` (sensors/controllers), `Profile` (user account), `KeepAlive` (device heartbeat status)
 - **initialization/** — App startup: logger setup, env loading, Gin router config, dependency injection
 - **customerrors/** — Standardized error responses and gRPC error types
 - **grpcutil/** — gRPC TLS config and secure dial-option builder
-- **httputil/** — HTTP client with timeouts (10s default); `Get` and `Post` helpers
+- **httputil/** — HTTP client with timeouts (10s default) and capped response reads; `Get` and `Post` helpers
 - **utils/** — Validation helpers, generic slice utilities (filter, map)
 - **integration_tests/** — Ginkgo/Gomega BDD tests with mocked HTTP/gRPC servers
 - **testutils/** — DB test helpers (collection lifecycle, document insertion)
 
 ### HTTP Endpoints
 
-- `POST /register` — Register a device with a single feature (controller or sensor). Validates `DeviceRegisterReq`, queries MongoDB, calls downstream gRPC `Registration.Register()` and HTTP sensor registration service.
-- `POST /keepalive/:deviceUuid` — Device heartbeat. Updates last-seen timestamp in MongoDB and notifies the HTTP sensor service.
+- `POST /admission/register` — Register a device with one or more features (`controller` and/or `sensor`). Validates `DeviceRegisterReq`, queries MongoDB, calls downstream gRPC `Registration.Register()` for controllers and the HTTP sensor registration service for sensors.
+- `GET /admission/keepalive` — Health check endpoint. Returns `{"message":"ok"}`.
 
 ### Request Flow
 
-1. **Register endpoint**: Validates JSON body (`DeviceRegisterReq`), checks device/profile exist in MongoDB
-2. Calls downstream gRPC service (`Registration.Register()` with 5-second deadline per call)
-3. Calls HTTP sensor service to register the feature
-4. Returns `DeviceRegisterRes` (public fields only: UUID, MAC, manufacturer, model, features)
-5. **Keepalive endpoint**: Validates device UUID, updates device heartbeat in MongoDB, notifies sensor service
+1. **Register endpoint**: Validates JSON body (`DeviceRegisterReq`) and finds the owning profile by `apiToken`
+2. Checks for an existing device by MAC before downstream side effects; duplicate MACs return `409`
+3. Calls downstream gRPC service (`Registration.Register()` with 5-second deadline per call) for controller features
+4. Calls HTTP sensor service to register sensor features
+5. Inserts the device and links it to the profile in a MongoDB transaction
+6. Returns `DeviceRegisterRes` (public fields only: UUID, MAC, manufacturer, model, features)
 
 ### Key Patterns
 
@@ -73,11 +74,17 @@ See `.env_template` for all variables and defaults.
 - **Validation**: Struct tags with `go-playground/validator` (e.g., `validate:"required,uuid4,mac"`). Custom error messages via `utils.GetErrorMessage`.
 - **Environment-driven**: All config via `.env` (no hardcoded values). `ENV=testing` switches to test database and Gin TestMode.
 - **gRPC**: Calls use per-request 5-second deadline. TLS toggled via `GRPC_TLS` env var; certs from `CERT_FOLDER_PATH` when enabled.
-- **HTTP**: Downstream HTTP calls use a shared client with 10-second timeout to prevent goroutine leaks.
+- **HTTP**: Downstream HTTP calls use a shared client with 10-second timeout and 64 KiB response body read cap to prevent goroutine and memory exhaustion.
+- **MongoDB indexes**: Startup creates unique indexes for `profiles.apiToken` and `devices.mac`. Existing duplicate production data must be cleaned before rollout because index creation will fail on duplicates.
+- **Duplicate registration**: Duplicate MAC registration returns `409` before downstream calls. If the MAC belongs to another profile, the response remains generic and the device is not attached to the requester.
 
 ## Recent Refactoring (See `CHANGELOG_CLAUDE.md`)
 
 Recent major changes:
+- **Security hardening**: Go baseline upgraded to 1.26.2; `govulncheck ./...` should report no vulnerabilities with that toolchain
+- **Uniqueness enforcement**: MongoDB unique indexes for `profiles.apiToken` and `devices.mac`, with duplicate-key races mapped to `409`
+- **Duplicate ownership protection**: Cross-profile attempts to register an existing MAC return generic `409` and do not attach the device
+- **HTTP response cap**: Downstream HTTP helper response reads are capped at 64 KiB
 - **Package split**: `utils/grpc.go` → `grpcutil/grpc.go`, `utils/http.go` → `httputil/http.go` for better organization
 - **Context propagation**: Handlers now use request context instead of long-lived background context
 - **HTTP timeouts**: Downstream HTTP calls use a 10-second timeout to prevent goroutine leaks
