@@ -36,6 +36,7 @@ Copy `.env_template` to `.env` and customize:
 - `HTTP_SENSOR_*` — HTTP sensor service details (base URL, port, API paths)
 - `LOG_FOLDER` — Directory for log files (created if missing)
 - `CERT_FOLDER_PATH` — Path to TLS certs when `GRPC_TLS=true`
+- `API_TOKEN_HASH_SECRET` — Mandatory HMAC secret/pepper used to look up `profiles.apiTokenHash`
 
 See `.env_template` for all variables and defaults.
 
@@ -59,7 +60,7 @@ See `.env_template` for all variables and defaults.
 
 ### Request Flow
 
-1. **Register endpoint**: Validates JSON body (`DeviceRegisterReq`) and finds the owning profile by `apiToken`
+1. **Register endpoint**: Validates JSON body (`DeviceRegisterReq`), hashes the supplied `apiToken`, and finds the owning profile by `apiTokenHash`
 2. Checks for an existing device by MAC before downstream side effects; duplicate MACs return `409`
 3. Calls downstream gRPC service (`Registration.Register()` with 5-second deadline per call) for controller features
 4. Calls HTTP sensor service to register sensor features
@@ -75,14 +76,15 @@ See `.env_template` for all variables and defaults.
 - **Environment-driven**: All config via `.env` (no hardcoded values). `ENV=testing` switches to test database and Gin TestMode.
 - **gRPC**: Calls use per-request 5-second deadline. TLS toggled via `GRPC_TLS` env var; certs from `CERT_FOLDER_PATH` when enabled.
 - **HTTP**: Downstream HTTP calls use a shared client with 10-second timeout and 64 KiB response body read cap to prevent goroutine and memory exhaustion.
-- **MongoDB indexes**: Startup creates unique indexes for `profiles.apiToken` and `devices.mac`. Existing duplicate production data must be cleaned before rollout because index creation will fail on duplicates.
+- **Profile API token lookup**: The raw `apiToken` from registration requests is never queried directly. It is HMAC-SHA-256 hashed with `API_TOKEN_HASH_SECRET` and matched against `profiles.apiTokenHash`; the secret must match `api-server`.
+- **MongoDB indexes**: Startup creates unique indexes for `profiles.apiTokenHash` and `devices.mac`. Existing duplicate production data must be cleaned before rollout because index creation will fail on duplicates.
 - **Duplicate registration**: Duplicate MAC registration returns `409` before downstream calls. If the MAC belongs to another profile, the response remains generic and the device is not attached to the requester.
 
 ## Recent Refactoring (See `CHANGELOG_CLAUDE.md`)
 
 Recent major changes:
 - **Security hardening**: Go baseline upgraded to 1.26.2; `govulncheck ./...` should report no vulnerabilities with that toolchain
-- **Uniqueness enforcement**: MongoDB unique indexes for `profiles.apiToken` and `devices.mac`, with duplicate-key races mapped to `409`
+- **Uniqueness enforcement**: MongoDB unique indexes for `profiles.apiTokenHash` and `devices.mac`, with duplicate-key races mapped to `409`
 - **Duplicate ownership protection**: Cross-profile attempts to register an existing MAC return generic `409` and do not attach the device
 - **HTTP response cap**: Downstream HTTP helper response reads are capped at 64 KiB
 - **Package split**: `utils/grpc.go` → `grpcutil/grpc.go`, `utils/http.go` → `httputil/http.go` for better organization

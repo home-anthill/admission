@@ -7,6 +7,7 @@ import (
 	"admission/initialization"
 	"admission/models"
 	"admission/testutils"
+	"admission/utils"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -89,6 +90,11 @@ var _ = Describe("Register", func() {
 		Expect(err).ShouldNot(HaveOccurred())
 		defer logger.Sync()
 		ctx = context.Background()
+		apiTokenHash, err := utils.HashAPIToken(profile.APIToken)
+		Expect(err).ToNot(HaveOccurred())
+		profile.APITokenHash = apiTokenHash
+		profile.APITokenEncrypted, err = utils.EncryptAPIToken(profile.APIToken)
+		Expect(err).ShouldNot(HaveOccurred())
 
 		collProfiles = db.GetCollections(client).Profiles
 		collDevices = db.GetCollections(client).Devices
@@ -258,6 +264,11 @@ var _ = Describe("Register", func() {
 				otherProfile := profile
 				otherProfile.ID = bson.NewObjectID()
 				otherProfile.APIToken = uuid.NewString()
+				apiTokenHash, err := utils.HashAPIToken(otherProfile.APIToken)
+				Expect(err).ToNot(HaveOccurred())
+				otherProfile.APITokenHash = apiTokenHash
+				otherProfile.APITokenEncrypted, err = utils.EncryptAPIToken(otherProfile.APIToken)
+				Expect(err).ShouldNot(HaveOccurred())
 				otherProfile.Devices = []bson.ObjectID{}
 				err = testutils.InsertOne(ctx, collProfiles, otherProfile)
 				Expect(err).ShouldNot(HaveOccurred())

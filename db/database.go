@@ -60,9 +60,11 @@ func getDbName() string {
 
 func ensureIndexes(ctx context.Context, client *mongo.Client) error {
 	collections := GetCollections(client)
-	if _, err := collections.Profiles.Indexes().CreateOne(ctx, mongo.IndexModel{
-		Keys:    bson.D{{Key: "apiToken", Value: 1}},
-		Options: options.Index().SetName("profiles_apiToken_unique").SetUnique(true),
+	if _, err := collections.Profiles.Indexes().CreateMany(ctx, []mongo.IndexModel{
+		{
+			Keys:    bson.D{{Key: "apiTokenHash", Value: 1}},
+			Options: options.Index().SetName("profiles_apiTokenHash_unique").SetUnique(true),
+		},
 	}); err != nil {
 		return err
 	}

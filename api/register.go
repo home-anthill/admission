@@ -115,10 +115,17 @@ func (handler *Register) PostRegister(c *gin.Context) {
 		return
 	}
 
+	apiTokenHash, err := utils.HashAPIToken(registerBody.APIToken)
+	if err != nil {
+		handler.logger.Errorw("REST - PostRegister - Cannot hash profile apiToken", "error", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Cannot register device"})
+		return
+	}
+
 	// search if profile token exists and retrieve profile
 	var profileFound models.Profile
 	errProfile := handler.collProfiles.FindOne(ctx, bson.M{
-		"apiToken": registerBody.APIToken,
+		"apiTokenHash": apiTokenHash,
 	}).Decode(&profileFound)
 	if errProfile != nil {
 		if !errors.Is(errProfile, mongo.ErrNoDocuments) {
@@ -181,7 +188,7 @@ func (handler *Register) PostRegister(c *gin.Context) {
 
 	// register controllers via gRPC
 	if len(controllers) > 0 {
-		errRegister := handler.registerControllersViaGRPC(ctx, &device, controllers, &profileFound)
+		errRegister := handler.registerControllersViaGRPC(ctx, &device, controllers, &profileFound, registerBody.APIToken)
 		if errRegister != nil {
 			handler.logger.Errorw("REST - PostRegister - cannot register controller device via gRPC", "error", errRegister)
 			if re, ok := errRegister.(*customerrors.ErrorWrapper); ok {
@@ -195,7 +202,7 @@ func (handler *Register) PostRegister(c *gin.Context) {
 
 	// register sensors via REST
 	if len(sensors) > 0 {
-		errRegister := handler.registerSensorsViaHTTP(&device, sensors, &profileFound)
+		errRegister := handler.registerSensorsViaHTTP(&device, sensors, &profileFound, registerBody.APIToken)
 		if errRegister != nil {
 			handler.logger.Errorw("REST - PostRegister - cannot register sensor device via HTTP", "error", errRegister)
 			if re, ok := errRegister.(*customerrors.ErrorWrapper); ok {
@@ -229,7 +236,7 @@ func (handler *Register) PostRegister(c *gin.Context) {
 	})
 }
 
-func (handler *Register) registerSensorsViaHTTP(device *models.Device, sensorFeatures []models.Feature, profileFound *models.Profile) error {
+func (handler *Register) registerSensorsViaHTTP(device *models.Device, sensorFeatures []models.Feature, profileFound *models.Profile, apiToken string) error {
 	// check if service is available calling keep-alive
 	// TODO remove this in a production code
 	statusCode, _, keepAliveErr := httputil.Get(handler.keepAliveSensorURL)
@@ -247,7 +254,7 @@ func (handler *Register) registerSensorsViaHTTP(device *models.Device, sensorFea
 			Manufacturer:   device.Manufacturer,
 			Model:          device.Model,
 			ProfileOwnerID: profileFound.ID.Hex(),
-			APIToken:       profileFound.APIToken,
+			APIToken:       apiToken,
 			FeatureUUID:    feature.UUID,
 		}
 		payloadJSON, err := json.Marshal(payload)
@@ -266,7 +273,7 @@ func (handler *Register) registerSensorsViaHTTP(device *models.Device, sensorFea
 	return nil
 }
 
-func (handler *Register) registerControllersViaGRPC(ctx context.Context, device *models.Device, controllerFeatures []models.Feature, profileFound *models.Profile) error {
+func (handler *Register) registerControllersViaGRPC(ctx context.Context, device *models.Device, controllerFeatures []models.Feature, profileFound *models.Profile, apiToken string) error {
 	handler.logger.Info("gRPC - registerControllersViaGRPC - Sending register via gRPC...")
 	// Set up a connection to the gRPC server.
 	securityDialOption, isSecure, err := grpcutil.BuildSecurityDialOption()
@@ -299,7 +306,7 @@ func (handler *Register) registerControllersViaGRPC(ctx context.Context, device 
 			Manufacturer:   device.Manufacturer,
 			Model:          device.Model,
 			ProfileOwnerId: profileFound.ID.Hex(),
-			ApiToken:       profileFound.APIToken,
+			ApiToken:       apiToken,
 			Feature: &register.RegisterFeature{
 				FeatureUuid: feature.UUID,
 				FeatureName: feature.Name,

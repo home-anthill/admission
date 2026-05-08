@@ -6,7 +6,8 @@
 - **Duplicate MAC ownership protection** (`api/register.go`): Registration now checks for an existing device by MAC before downstream gRPC/HTTP calls. Duplicate registrations return `409` with the existing generic `{"message":"Already registered"}` response.
 - **Cross-profile device attachment prevented** (`api/register.go`): If a valid profile token tries to register a MAC already owned by another profile, the service returns `409` and does not add that device to the requesting profile.
 - **Duplicate-key race handling** (`api/register.go`): MongoDB duplicate-key errors during insert are now mapped to `409`, covering concurrent registration races that pass the initial read check.
-- **MongoDB uniqueness enforced at startup** (`db/database.go`): Startup now creates unique indexes for `profiles.apiToken` and `devices.mac`. Deployment note: existing duplicate data must be cleaned before rollout, otherwise index creation will fail and startup will stop.
+- **MongoDB uniqueness enforced at startup** (`db/database.go`): Startup now creates unique indexes for `profiles.apiTokenHash` and `devices.mac`. Deployment note: existing duplicate data must be cleaned before rollout, otherwise index creation will fail and startup will stop.
+- **Profile API token lookup hardened** (`api/register.go`, `utils/api_token_crypto.go`): Registration now hashes the incoming profile token with mandatory `API_TOKEN_HASH_SECRET` and queries `profiles.apiTokenHash` instead of querying plaintext `profiles.apiToken`.
 - **Downstream HTTP response reads capped** (`httputil/http.go`): `Get` and `Post` now read at most 64 KiB from downstream response bodies, preventing memory exhaustion from large responses.
 - **Regression coverage added** (`integration_tests/register_test.go`, `httputil/http_test.go`): Added tests for cross-profile duplicate registration and capped HTTP response bodies.
 
