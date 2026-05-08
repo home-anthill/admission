@@ -55,7 +55,7 @@ See `.env_template` for all variables and defaults.
 
 ### HTTP Endpoints
 
-- `POST /admission/register` — Register a device with one or more features (`controller` and/or `sensor`). Validates `DeviceRegisterReq`, queries MongoDB, calls downstream gRPC `Registration.Register()` for controllers and the HTTP sensor registration service for sensors.
+- `POST /admission/register` — Register a device with one or more features (`controller` and/or `sensor`). Validates `DeviceRegisterReq`, including a maximum of 16 features per request, queries MongoDB, calls downstream gRPC `Registration.Register()` for controllers and the HTTP sensor registration service for sensors.
 - `GET /admission/keepalive` — Health check endpoint. Returns `{"message":"ok"}`.
 
 ### Request Flow
@@ -72,11 +72,12 @@ See `.env_template` for all variables and defaults.
 - **Dependency injection**: Handlers are constructor-injected with logger, DB client, and validator. See `initialization/server.go:RegisterRoutes`.
 - **Context propagation**: Handlers use request context (`c.Request.Context()`) for all DB queries and gRPC calls, respecting client cancellation and timeouts.
 - **Error handling**: Errors are wrapped via `customerrors.ErrorWrapper` and returned as structured HTTP JSON responses with consistent status codes.
-- **Validation**: Struct tags with `go-playground/validator` (e.g., `validate:"required,uuid4,mac"`). Custom error messages via `utils.GetErrorMessage`.
+- **Validation**: Struct tags with `go-playground/validator` (e.g., `validate:"required,uuid4,mac"`). Registration requests are capped at 16 features to bound downstream HTTP/gRPC fan-out. Custom error messages via `utils.GetErrorMessage`.
 - **Environment-driven**: All config via `.env` (no hardcoded values). `ENV=testing` switches to test database and Gin TestMode.
 - **gRPC**: Calls use per-request 5-second deadline. TLS toggled via `GRPC_TLS` env var; certs from `CERT_FOLDER_PATH` when enabled.
 - **HTTP**: Downstream HTTP calls use a shared client with 10-second timeout and 64 KiB response body read cap to prevent goroutine and memory exhaustion.
 - **Profile API token lookup**: The raw `apiToken` from registration requests is never queried directly. It is HMAC-SHA-256 hashed with `API_TOKEN_HASH_SECRET` and matched against `profiles.apiTokenHash`; the secret must match `api-server`.
+- **Feature fan-out limit**: `DeviceRegisterReq.Features` is capped at 16 entries before profile lookup or downstream side effects.
 - **MongoDB indexes**: Startup creates unique indexes for `profiles.apiTokenHash` and `devices.mac`. Existing duplicate production data must be cleaned before rollout because index creation will fail on duplicates.
 - **Duplicate registration**: Duplicate MAC registration returns `409` before downstream calls. If the MAC belongs to another profile, the response remains generic and the device is not attached to the requester.
 

@@ -2,6 +2,7 @@
 
 ## 2026-04-24 Security Hardening
 
+- **Registration fan-out bounded** (`api/register.go`): Device registration requests now reject more than 16 features before profile lookup or downstream HTTP/gRPC calls, preventing one valid request from triggering unbounded downstream writes/calls.
 - **Go toolchain vulnerabilities fixed** (`go.mod`, `Dockerfile`): Raised the project Go baseline and Docker builder image from Go 1.26.0/1.26 to Go 1.26.2. `govulncheck ./...` now reports no vulnerabilities.
 - **Duplicate MAC ownership protection** (`api/register.go`): Registration now checks for an existing device by MAC before downstream gRPC/HTTP calls. Duplicate registrations return `409` with the existing generic `{"message":"Already registered"}` response.
 - **Cross-profile device attachment prevented** (`api/register.go`): If a valid profile token tries to register a MAC already owned by another profile, the service returns `409` and does not add that device to the requesting profile.
@@ -10,6 +11,7 @@
 - **Profile API token lookup hardened** (`api/register.go`, `utils/api_token_crypto.go`): Registration now hashes the incoming profile token with mandatory `API_TOKEN_HASH_SECRET` and queries `profiles.apiTokenHash` instead of querying plaintext `profiles.apiToken`.
 - **Downstream HTTP response reads capped** (`httputil/http.go`): `Get` and `Post` now read at most 64 KiB from downstream response bodies, preventing memory exhaustion from large responses.
 - **Regression coverage added** (`integration_tests/register_test.go`, `httputil/http_test.go`): Added tests for cross-profile duplicate registration and capped HTTP response bodies.
+- **Feature limit regression coverage** (`integration_tests/register_test.go`): Added a test that verifies 17 features are rejected with HTTP 400.
 
 ## Bug Fixes
 

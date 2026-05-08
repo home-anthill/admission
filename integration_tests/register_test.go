@@ -649,6 +649,36 @@ var _ = Describe("Register", func() {
 				Expect(recorder.Body.String()).To(Equal(`{"error":"invalid request body, these fields are not valid: mac manufacturer model apitoken type name order unit"}`))
 			})
 
+			It("should reject registration requests with more than 16 features", func() {
+				features := make([]api.FeatureReq, 17)
+				for i := range features {
+					features[i] = api.FeatureReq{
+						Type:   "sensor",
+						Name:   fmt.Sprintf("sensor%d", i+1),
+						Enable: true,
+						Order:  i + 1,
+						Unit:   "-",
+					}
+				}
+				deviceRegisterReq := api.DeviceRegisterReq{
+					Mac:          "11:22:33:44:55:66",
+					Manufacturer: "test",
+					Model:        "test-model",
+					APIToken:     uuid.NewString(),
+					Features:     features,
+				}
+				var buf bytes.Buffer
+				err := json.NewEncoder(&buf).Encode(deviceRegisterReq)
+				Expect(err).ShouldNot(HaveOccurred())
+
+				recorder := httptest.NewRecorder()
+				req := httptest.NewRequest(http.MethodPost, "/admission/register", &buf)
+				req.Header.Add("Content-Type", `application/json`)
+				router.ServeHTTP(recorder, req)
+				Expect(recorder.Code).To(Equal(http.StatusBadRequest))
+				Expect(recorder.Body.String()).To(Equal(`{"error":"invalid request body, these fields are not valid: features"}`))
+			})
+
 			It("should return an error, if apiToken doesn't exist", func() {
 				err := testutils.InsertOne(ctx, collProfiles, profile)
 				Expect(err).ShouldNot(HaveOccurred())

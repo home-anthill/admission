@@ -41,7 +41,7 @@ type DeviceRegisterReq struct {
 	Manufacturer string       `json:"manufacturer" validate:"required,min=3,max=50"`
 	Model        string       `json:"model" validate:"required,min=3,max=20"`
 	APIToken     string       `json:"apiToken" validate:"required,uuid4"`
-	Features     []FeatureReq `json:"features" validate:"required,dive"`
+	Features     []FeatureReq `json:"features" validate:"required,max=16,dive"`
 }
 
 // DeviceRegisterRes is the response returned after a successful device registration.
