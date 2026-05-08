@@ -11,6 +11,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -64,6 +65,8 @@ var _ = Describe("Register", func() {
 	var collDevices *mongo.Collection
 	var grpcMockServer *grpc.Server
 	var httpMockServer *httptest.Server
+	var oldGRPCURL string
+	var oldGRPCURLSet bool
 
 	currentDate := time.Now()
 	profile := models.Profile{
@@ -85,11 +88,26 @@ var _ = Describe("Register", func() {
 	})
 
 	BeforeEach(func() {
-		var err error
+		ctx = context.Background()
+
+		// Bind the mock gRPC listener before building the router. NewRegister
+		// reads GRPC_URL during initialization.Start(), so GRPC_URL must point
+		// to this exact listener before Start runs. Use 127.0.0.1 and an
+		// ephemeral port to avoid localhost IPv4/IPv6 ambiguity and fixed-port
+		// collisions between specs.
+		grpcListener, errGrpc := net.Listen("tcp", "127.0.0.1:0")
+		Expect(errGrpc).ShouldNot(HaveOccurred())
+
+		// Save and restore GRPC_URL because this test overrides process-wide env.
+		// The override must happen after the listener is bound, but before
+		// initialization.Start() constructs the API handlers.
+		oldGRPCURL, oldGRPCURLSet = os.LookupEnv("GRPC_URL")
+		err := os.Setenv("GRPC_URL", grpcListener.Addr().String())
+		Expect(err).ShouldNot(HaveOccurred())
+
 		logger, router, client, err = initialization.Start()
 		Expect(err).ShouldNot(HaveOccurred())
 		defer logger.Sync()
-		ctx = context.Background()
 		apiTokenHash, err := utils.HashAPIToken(profile.APIToken)
 		Expect(err).ToNot(HaveOccurred())
 		profile.APITokenHash = apiTokenHash
@@ -107,11 +125,15 @@ var _ = Describe("Register", func() {
 		grpcMockServer = grpc.NewServer()
 		registerGrpc := newRegisterGrpc(ctx, logger)
 		register.RegisterRegistrationServer(grpcMockServer, registerGrpc)
-		grpcListener, errGrpc := net.Listen("tcp", "localhost:50051")
-		Expect(errGrpc).ShouldNot(HaveOccurred())
 		logger.Infof("register_test - gRPC client listening at %s", grpcListener.Addr().String())
 		go func() {
-			_ = grpcMockServer.Serve(grpcListener)
+			defer GinkgoRecover()
+			errGrpc := grpcMockServer.Serve(grpcListener)
+			// Stop() in AfterEach makes Serve return grpc.ErrServerStopped. That is
+			// normal cleanup, not a test failure; report only unexpected serve errors.
+			if errGrpc != nil && !errors.Is(errGrpc, grpc.ErrServerStopped) {
+				Fail(fmt.Sprintf("gRPC mock server failed: %v", errGrpc))
+			}
 		}()
 
 		// --------- start an HTTP server ---------
@@ -140,6 +162,16 @@ var _ = Describe("Register", func() {
 		grpcMockServer.Stop()
 		httpMockServer.Close()
 		testutils.DropAllCollections(ctx, collProfiles, collDevices)
+		// Restore the process-wide GRPC_URL after this spec. Other integration
+		// tests build their own routers from the environment and must not inherit
+		// this spec's ephemeral mock address.
+		if oldGRPCURLSet {
+			err := os.Setenv("GRPC_URL", oldGRPCURL)
+			Expect(err).ShouldNot(HaveOccurred())
+		} else {
+			err := os.Unsetenv("GRPC_URL")
+			Expect(err).ShouldNot(HaveOccurred())
+		}
 	})
 
 	Describe("calling register api", func() {
