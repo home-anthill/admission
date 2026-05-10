@@ -36,7 +36,7 @@ Copy `.env_template` to `.env` and customize:
 - `HTTP_SENSOR_*` — HTTP sensor service details (base URL, port, API paths)
 - `LOG_FOLDER` — Directory for log files (created if missing)
 - `CERT_FOLDER_PATH` — Path to TLS certs when `GRPC_TLS=true`
-- `API_TOKEN_HASH_SECRET` — Mandatory HMAC secret/pepper used to look up `profiles.apiTokenHash`
+- `API_TOKEN_HASH_SECRET` — Mandatory HMAC secret/pepper used to look up `profiles.apiTokenHash`; startup rejects values shorter than 32 characters
 
 See `.env_template` for all variables and defaults.
 
