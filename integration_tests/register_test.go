@@ -118,7 +118,7 @@ var _ = Describe("Register", func() {
 		collDevices = db.GetCollections(client).Devices
 		testutils.EnsureCollections(ctx, client, "api-server-test")
 
-		err = os.Setenv("SINGLE_USER_LOGIN_EMAIL", "test@test.com")
+		err = os.Setenv("LIMIT_TO_USER_EMAILS", "test@test.com")
 		Expect(err).ShouldNot(HaveOccurred())
 
 		// --------- start a gRPC server ---------
