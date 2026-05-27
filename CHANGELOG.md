@@ -1,20 +1,12 @@
 # Changelog
 
-## 2026-04-24 Security Hardening
+## 4.0.0
 
-- **Registration fan-out bounded** (`api/register.go`): Device registration requests now reject more than 16 features before profile lookup or downstream HTTP/gRPC calls, preventing one valid request from triggering unbounded downstream writes/calls.
-- **Go toolchain vulnerabilities fixed** (`go.mod`, `Dockerfile`): Raised the project Go baseline and Docker builder image from Go 1.26.0/1.26 to Go 1.26.2. `govulncheck ./...` now reports no vulnerabilities.
-- **Duplicate MAC ownership protection** (`api/register.go`): Registration now checks for an existing device by MAC before downstream gRPC/HTTP calls. Duplicate registrations return `409` with the existing generic `{"message":"Already registered"}` response.
-- **Cross-profile device attachment prevented** (`api/register.go`): If a valid profile token tries to register a MAC already owned by another profile, the service returns `409` and does not add that device to the requesting profile.
-- **Duplicate-key race handling** (`api/register.go`): MongoDB duplicate-key errors during insert are now mapped to `409`, covering concurrent registration races that pass the initial read check.
-- **MongoDB uniqueness enforced at startup** (`db/database.go`): Startup now creates unique indexes for `profiles.apiTokenHash` and `devices.mac`. Deployment note: existing duplicate data must be cleaned before rollout, otherwise index creation will fail and startup will stop.
-- **Profile API token lookup hardened** (`api/register.go`, `utils/api_token_crypto.go`): Registration now hashes the incoming profile token with mandatory `API_TOKEN_HASH_SECRET` and queries `profiles.apiTokenHash` instead of querying plaintext `profiles.apiToken`.
-- **Token hash secret startup validation** (`initialization/environment.go`): Startup now fails if `API_TOKEN_HASH_SECRET` is missing or shorter than 32 characters.
-- **Downstream HTTP response reads capped** (`httputil/http.go`): `Get` and `Post` now read at most 64 KiB from downstream response bodies, preventing memory exhaustion from large responses.
-- **Regression coverage added** (`integration_tests/register_test.go`, `httputil/http_test.go`): Added tests for cross-profile duplicate registration and capped HTTP response bodies.
-- **Feature limit regression coverage** (`integration_tests/register_test.go`): Added a test that verifies 17 features are rejected with HTTP 400.
+### Features
 
-## Bug Fixes
+- **Device `name` field initialized on insert** (`models/device.go`, `api/register.go`): Added a `Name` string field to `models.Device` (stored in MongoDB as `"name"`, excluded from API responses via `json:"-"`). On registration, `Name` is automatically set to the device's MAC address. The field is not accepted or exposed via the REST API.
+
+### Bug Fixes
 
 - **`Enable: false` rejected by validation** (`api/register.go`): Removed `required` tag on `FeatureReq.Enable` bool field. The `required` validator rejects the zero value (`false`), making it impossible to register a device with `Enable: false`.
 - **`GetErrorMessage` panic on unexpected error type** (`utils/validator.go`): Replaced bare type assertion `err.(validator.ValidationErrors)` with `errors.As`, preventing a panic if the error is not a `ValidationErrors`.
@@ -28,8 +20,7 @@
 - **`os.Getwd()` error silently discarded** (`initialization/environment.go`): `readEnv` now returns the error from `os.Getwd()` instead of ignoring it with `_`.
 - **Dead `panic` after `logger.Fatalf`** (`db/database.go`): `Fatalf` calls `os.Exit(1)`, so the `panic` on the next line was unreachable dead code. Removed both — `InitDb` now returns errors instead.
 
-
-## Security Fixes
+### Security Fixes
 
 - **HTTP client with no timeout** (`httputil/http.go`): `http.Get`/`http.Post` used the default client with no timeout. If a downstream service hung, goroutines would leak indefinitely. Replaced with a shared `http.Client` with a 10-second timeout.
 - **TLS minimum version not set** (`grpcutil/grpc.go`): Added `MinVersion: tls.VersionTLS13` to the `tls.Config` used for gRPC transport credentials.
@@ -37,9 +28,19 @@
 - **Internal model leaked in API response** (`api/register.go`): `PostRegister` previously returned the raw `models.Device` (including internal MongoDB fields). Now returns a purpose-built `DeviceRegisterRes` struct with only the public fields.
 - **Hardened Dockerfile**: Uses the `dhi.io/alpine-base:3.23` minimal base image (no Go toolchain in runtime), runs as non-root user via `USER 65534` directive (nobody), and pre-creates a dedicated `/logs` directory with correct ownership.
 - **Input validation tightened** (`api/register.go`): Added `alphanum` constraint to `FeatureReq.Name` to reject names containing special characters.
+- **Registration fan-out bounded** (`api/register.go`): Device registration requests now reject more than 16 features before profile lookup or downstream HTTP/gRPC calls, preventing one valid request from triggering unbounded downstream writes/calls.
+- **Go toolchain vulnerabilities fixed** (`go.mod`, `Dockerfile`): Raised the project Go baseline and Docker builder image from Go 1.26.0/1.26 to Go 1.26.3. `govulncheck ./...` now reports no vulnerabilities.
+- **Duplicate MAC ownership protection** (`api/register.go`): Registration now checks for an existing device by MAC before downstream gRPC/HTTP calls. Duplicate registrations return `409` with the existing generic `{"message":"Already registered"}` response.
+- **Cross-profile device attachment prevented** (`api/register.go`): If a valid profile token tries to register a MAC already owned by another profile, the service returns `409` and does not add that device to the requesting profile.
+- **Duplicate-key race handling** (`api/register.go`): MongoDB duplicate-key errors during insert are now mapped to `409`, covering concurrent registration races that pass the initial read check.
+- **MongoDB uniqueness enforced at startup** (`db/database.go`): Startup now creates unique indexes for `profiles.apiTokenHash` and `devices.mac`. Deployment note: existing duplicate data must be cleaned before rollout, otherwise index creation will fail and startup will stop.
+- **Profile API token lookup hardened** (`api/register.go`, `utils/api_token_crypto.go`): Registration now hashes the incoming profile token with mandatory `API_TOKEN_HASH_SECRET` and queries `profiles.apiTokenHash` instead of querying plaintext `profiles.apiToken`.
+- **Token hash secret startup validation** (`initialization/environment.go`): Startup now fails if `API_TOKEN_HASH_SECRET` is missing or shorter than 32 characters.
+- **Downstream HTTP response reads capped** (`httputil/http.go`): `Get` and `Post` now read at most 64 KiB from downstream response bodies, preventing memory exhaustion from large responses.
+- **Regression coverage added** (`integration_tests/register_test.go`, `httputil/http_test.go`): Added tests for cross-profile duplicate registration and capped HTTP response bodies.
+- **Feature limit regression coverage** (`integration_tests/register_test.go`): Added a test that verifies 17 features are rejected with HTTP 400.
 
-
-## Idiomatic Go Improvements
+### Idiomatic Go Improvements
 
 - **Context removed from structs** (`api/register.go`, `api/keepalive.go`): Context is now passed as a function parameter, and handlers use the request context (`c.Request.Context()`) instead of a long-lived background context.
 - **Request context propagation** (`api/register.go`): DB queries, gRPC calls, and transactions now use the request context, so client disconnections are properly respected.
@@ -63,19 +64,12 @@
 - **Duplicate `getDbName()` call removed** (`db/database.go`): `GetCollections` now calls `getDbName()` once and reuses the `*mongo.Database` handle.
 - **Stutter comments replaced with meaningful doc comments**: Updated all `// TypeName struct`-style comments across `customerrors/`, `db/`, `initialization/`, `models/`, and `api/` to describe purpose and behavior.
 
-
-## Features
-
-- **Device `name` field initialized on insert** (`models/device.go`, `api/register.go`): Added a `Name` string field to `models.Device` (stored in MongoDB as `"name"`, excluded from API responses via `json:"-"`). On registration, `Name` is automatically set to the device's MAC address. The field is not accepted or exposed via the REST API.
-
-
-## Test Improvements
+### Test Improvements
 
 - **`EnsureCollections` helper** (`testutils/db_utils.go`): New helper creates `profiles` and `devices` collections if they don't exist, preventing test failures on a fresh MongoDB instance without a replica-set `create` event.
 - **Keepalive handler route fix** (`integration_tests/register_test.go`): Changed mock HTTP mux pattern from `/keepalive` to `/keepalive/` to match the trailing-slash URL built from env vars.
 - **DB verification for `Name` field** (`integration_tests/register_test.go`): The three success test cases (controller, sensor, hybrid) now query MongoDB directly after registration and assert that `device.Name` equals the registered MAC address.
 
-
-## Chores
+### Chores
 
 - update all dependencies

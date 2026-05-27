@@ -4,5 +4,9 @@
 
 .env
 tmp
-*.log
+logs
 coverage
+*.log
+.gocache/
+.gomodcache/
+build
