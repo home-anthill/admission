@@ -51,6 +51,23 @@ func newRegisterGrpc(ctx context.Context, logger *zap.SugaredLogger) *registerGr
 	}
 }
 
+func floatPtr(v float64) *float64 {
+	return &v
+}
+
+func validBoolSpec() api.SpecReq {
+	return api.SpecReq{Format: models.Bool}
+}
+
+func validTemperatureSpec() api.SpecReq {
+	return api.SpecReq{
+		Format: models.Float,
+		Min:    floatPtr(-40),
+		Max:    floatPtr(200),
+		Step:   floatPtr(0.01),
+	}
+}
+
 func (handler *registerGrpcStub) Register(ctx context.Context, in *register.RegisterRequest) (*register.RegisterReply, error) {
 	fmt.Printf("register_test - Register - received = %#v\n", in)
 	return &register.RegisterReply{Status: strconv.FormatInt(http.StatusOK, 10), Message: "Inserted"}, nil
@@ -188,6 +205,7 @@ var _ = Describe("Register", func() {
 					Enable: true,
 					Order:  1,
 					Unit:   "-",
+					Spec:   validBoolSpec(),
 				}
 				deviceRegisterReq := api.DeviceRegisterReq{
 					Mac:          "11:22:33:44:55:66",
@@ -242,6 +260,7 @@ var _ = Describe("Register", func() {
 					Enable: true,
 					Order:  1,
 					Unit:   "-",
+					Spec:   validBoolSpec(),
 				}
 				deviceRegisterReq := api.DeviceRegisterReq{
 					Mac:          "11:22:33:44:55:66",
@@ -311,6 +330,7 @@ var _ = Describe("Register", func() {
 					Enable: true,
 					Order:  1,
 					Unit:   "-",
+					Spec:   validBoolSpec(),
 				}
 				deviceRegisterReq := api.DeviceRegisterReq{
 					Mac:          "11:22:33:44:55:66",
@@ -359,6 +379,7 @@ var _ = Describe("Register", func() {
 					Enable: true,
 					Order:  1,
 					Unit:   "°C",
+					Spec:   validTemperatureSpec(),
 				}
 				sensorRegisterReq := api.DeviceRegisterReq{
 					Mac:          "11:22:33:44:55:66",
@@ -413,6 +434,7 @@ var _ = Describe("Register", func() {
 					Enable: true,
 					Order:  1,
 					Unit:   "°C",
+					Spec:   validTemperatureSpec(),
 				}
 				sensorRegisterReq := api.DeviceRegisterReq{
 					Mac:          "11:22:33:44:55:66",
@@ -473,6 +495,7 @@ var _ = Describe("Register", func() {
 					Enable: true,
 					Order:  1,
 					Unit:   "°C",
+					Spec:   validTemperatureSpec(),
 				}
 				featureDevice := api.FeatureReq{
 					Type:   "controller",
@@ -480,6 +503,7 @@ var _ = Describe("Register", func() {
 					Enable: true,
 					Order:  2,
 					Unit:   "-",
+					Spec:   validBoolSpec(),
 				}
 				hybridRegisterReq := api.DeviceRegisterReq{
 					Mac:          "11:22:33:44:55:66",
@@ -543,6 +567,7 @@ var _ = Describe("Register", func() {
 					Enable: true,
 					Order:  1,
 					Unit:   "°C",
+					Spec:   validTemperatureSpec(),
 				}
 				featureDevice := api.FeatureReq{
 					Type:   "controller",
@@ -550,6 +575,7 @@ var _ = Describe("Register", func() {
 					Enable: true,
 					Order:  2,
 					Unit:   "-",
+					Spec:   validBoolSpec(),
 				}
 				hybridRegisterReq := api.DeviceRegisterReq{
 					Mac:          "11:22:33:44:55:66",
@@ -629,6 +655,7 @@ var _ = Describe("Register", func() {
 					Enable: true,
 					Order:  0,  // not valid, because must be >= 1
 					Unit:   "", // not valid, because 1 <= length <= 10
+					Spec:   validBoolSpec(),
 				}
 				deviceRegisterReq := api.DeviceRegisterReq{
 					Mac:          "1234", // not valid, because must be a MAC
@@ -658,6 +685,7 @@ var _ = Describe("Register", func() {
 						Enable: true,
 						Order:  i + 1,
 						Unit:   "-",
+						Spec:   validBoolSpec(),
 					}
 				}
 				deviceRegisterReq := api.DeviceRegisterReq{
@@ -690,6 +718,7 @@ var _ = Describe("Register", func() {
 					Enable: true,
 					Order:  1,
 					Unit:   "-",
+					Spec:   validBoolSpec(),
 				}
 				deviceRegisterReq := api.DeviceRegisterReq{
 					Mac:          "11:22:33:44:55:66",

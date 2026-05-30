@@ -26,6 +26,21 @@ import (
 	"google.golang.org/grpc"
 )
 
+// SpecListItemReq represents a feature spec list item in a device registration request.
+type SpecListItemReq struct {
+	Value *int   `json:"value" validate:"required"`
+	Text  string `json:"text" validate:"required,alphanum,min=1"`
+}
+
+// SpecReq represents a feature spec in a device registration request.
+type SpecReq struct {
+	Format models.SpecFormat `json:"format" validate:"required,oneof=bool int float list"`
+	Min    *float64          `json:"min,omitempty"`
+	Max    *float64          `json:"max,omitempty"`
+	Step   *float64          `json:"step,omitempty"`
+	List   []SpecListItemReq `json:"list,omitempty" validate:"max=20,dive"`
+}
+
 // FeatureReq represents a single feature in a device registration request.
 type FeatureReq struct {
 	Type   models.Type `json:"type" validate:"required,oneof='controller' 'sensor'"`
@@ -33,6 +48,7 @@ type FeatureReq struct {
 	Enable bool        `json:"enable" validate:"boolean"`
 	Order  int         `json:"order" validate:"required,gte=1"`
 	Unit   string      `json:"unit" validate:"required,min=1,max=10"`
+	Spec   SpecReq     `json:"spec" validate:"required"`
 }
 
 // DeviceRegisterReq is the expected JSON body for a device registration request.
@@ -177,6 +193,7 @@ func (handler *Register) PostRegister(c *gin.Context) {
 				Enable: fReq.Enable,
 				Order:  fReq.Order,
 				Unit:   fReq.Unit,
+				Spec:   specReqToModel(fReq.Spec),
 			}
 		}),
 	}
@@ -360,6 +377,24 @@ func (handler *Register) insertDevice(ctx context.Context, device *models.Device
 		handler.logger.Errorw("insertDevice - insert device in transaction", "error", errTrans)
 	}
 	return errTrans
+}
+
+func specReqToModel(spec SpecReq) models.Spec {
+	modelSpec := models.Spec{
+		Format: spec.Format,
+		Min:    spec.Min,
+		Max:    spec.Max,
+		Step:   spec.Step,
+	}
+	if len(spec.List) > 0 {
+		modelSpec.List = utils.MapSlice(spec.List, func(item SpecListItemReq) models.SpecListItem {
+			return models.SpecListItem{
+				Value: float32(*item.Value),
+				Text:  item.Text,
+			}
+		})
+	}
+	return modelSpec
 }
 
 func profileOwnsDevice(profile *models.Profile, deviceID bson.ObjectID) bool {

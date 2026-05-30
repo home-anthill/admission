@@ -2,6 +2,7 @@ package initialization
 
 import (
 	"admission/api"
+	"admission/validators"
 	"os"
 
 	"github.com/gin-contrib/cors"
@@ -61,6 +62,7 @@ func SetupRouter(logger *zap.SugaredLogger) *gin.Engine {
 
 // RegisterRoutes sets up the HTTP routes for the admission service.
 func RegisterRoutes(router *gin.Engine, logger *zap.SugaredLogger, validate *validator.Validate, client *mongo.Client) {
+	validators.RegisterValidations(validate)
 	register := api.NewRegister(logger, client, validate)
 
 	// public API called by sensors and devices to register themselves
