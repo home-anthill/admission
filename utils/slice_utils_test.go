@@ -20,4 +20,14 @@ var _ = Describe("using slice utils", func() {
 			//Expect(found).To(BeTrue())
 		})
 	})
+
+	When("calling Filter", func() {
+		It("should return only the elements matching the predicate", func() {
+			filtered := Filter([]int{1, 2, 3, 4}, func(v int) bool {
+				return v%2 == 0
+			})
+
+			Expect(filtered).To(Equal([]int{2, 4}))
+		})
+	})
 })

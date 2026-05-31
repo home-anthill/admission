@@ -1,5 +1,20 @@
 # Changelog
 
+## 5.0.0
+
+### Features
+
+- add device feature spec support
+
+### Tests
+
+- improve test coverage
+
+### Chores
+
+- update dependencies
+
+
 ## 4.0.0
 
 ### Features
