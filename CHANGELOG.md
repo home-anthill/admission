@@ -5,6 +5,7 @@
 ### Features
 
 - add device feature spec support
+- Added thermostat `mode` sensor feature
 
 ### Tests
 
