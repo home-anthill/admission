@@ -70,10 +70,10 @@ func validTemperatureSpec() api.SpecReq {
 
 func validThermostatModeSpec() api.SpecReq {
 	return api.SpecReq{
-		Format: models.Int,
-		Min:    floatPtr(-1),
-		Max:    floatPtr(2),
-		Step:   floatPtr(1),
+		Format: models.Float,
+		Min:    floatPtr(-1.0),
+		Max:    floatPtr(2.0),
+		Step:   floatPtr(1.0),
 	}
 }
 
@@ -809,10 +809,10 @@ var _ = Describe("Register", func() {
 				Expect(modeFeature.Enable).To(BeTrue())
 				Expect(modeFeature.Order).To(Equal(4))
 				Expect(modeFeature.Unit).To(Equal("-"))
-				Expect(modeFeature.Spec.Format).To(Equal(models.Int))
-				Expect(*modeFeature.Spec.Min).To(Equal(float64(-1)))
-				Expect(*modeFeature.Spec.Max).To(Equal(float64(2)))
-				Expect(*modeFeature.Spec.Step).To(Equal(float64(1)))
+				Expect(modeFeature.Spec.Format).To(Equal(models.Float))
+				Expect(*modeFeature.Spec.Min).To(Equal(-1.0))
+				Expect(*modeFeature.Spec.Max).To(Equal(2.0))
+				Expect(*modeFeature.Spec.Step).To(Equal(1.0))
 			})
 		})
 
