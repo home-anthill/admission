@@ -68,6 +68,15 @@ func validTemperatureSpec() api.SpecReq {
 	}
 }
 
+func validThermostatModeSpec() api.SpecReq {
+	return api.SpecReq{
+		Format: models.Int,
+		Min:    floatPtr(-1),
+		Max:    floatPtr(2),
+		Step:   floatPtr(1),
+	}
+}
+
 func (handler *registerGrpcStub) Register(ctx context.Context, in *register.RegisterRequest) (*register.RegisterReply, error) {
 	fmt.Printf("register_test - Register - received = %#v\n", in)
 	return &register.RegisterReply{Status: strconv.FormatInt(http.StatusOK, 10), Message: "Inserted"}, nil
@@ -164,6 +173,8 @@ var _ = Describe("Register", func() {
 		mux.HandleFunc("/sensors/register/airquality", registerHandler)
 		mux.HandleFunc("/sensors/register/airpressure", registerHandler)
 		mux.HandleFunc("/sensors/register/poweroutage", registerHandler)
+		mux.HandleFunc("/sensors/register/mode", registerHandler)
+		mux.HandleFunc("/sensors/register/online", registerHandler)
 		httpListener, errHTTP := net.Listen("tcp", "localhost:8000")
 		logger.Infof("register_test - HTTP client listening at %s", httpListener.Addr().String())
 		Expect(errHTTP).ShouldNot(HaveOccurred())
@@ -630,6 +641,178 @@ var _ = Describe("Register", func() {
 				router.ServeHTTP(recorder, req)
 				Expect(recorder.Code).To(Equal(http.StatusConflict))
 				Expect(recorder.Body.String()).To(Equal(`{"message":"Already registered"}`))
+			})
+		})
+
+		When("registering a thermostat", func() {
+			It("should register without a mode sensor feature", func() {
+				By("with an existing profile with a valid apiToken")
+				err := testutils.InsertOne(ctx, collProfiles, profile)
+				Expect(err).ShouldNot(HaveOccurred())
+
+				features := []api.FeatureReq{
+					{
+						Type:   "controller",
+						Name:   "setpoint",
+						Enable: true,
+						Order:  1,
+						Unit:   "°C",
+						Spec: api.SpecReq{
+							Format: models.Float,
+							Min:    floatPtr(10),
+							Max:    floatPtr(30),
+							Step:   floatPtr(0.5),
+						},
+					},
+					{
+						Type:   "controller",
+						Name:   "tolerance",
+						Enable: true,
+						Order:  2,
+						Unit:   "°C",
+						Spec: api.SpecReq{
+							Format: models.Float,
+							Min:    floatPtr(0),
+							Max:    floatPtr(10),
+							Step:   floatPtr(0.5),
+						},
+					},
+					{
+						Type:   "sensor",
+						Name:   "temperature",
+						Enable: true,
+						Order:  3,
+						Unit:   "°C",
+						Spec:   validTemperatureSpec(),
+					},
+					{
+						Type:   "sensor",
+						Name:   "online",
+						Enable: true,
+						Order:  4,
+						Unit:   "-",
+						Spec:   validBoolSpec(),
+					},
+				}
+				thermostatRegisterReq := api.DeviceRegisterReq{
+					Mac:          "11:22:33:44:55:66",
+					Manufacturer: "ks89",
+					Model:        "thermostat",
+					APIToken:     profile.APIToken,
+					Features:     features,
+				}
+				var buf bytes.Buffer
+				err = json.NewEncoder(&buf).Encode(thermostatRegisterReq)
+				Expect(err).ShouldNot(HaveOccurred())
+
+				recorder := httptest.NewRecorder()
+				req := httptest.NewRequest(http.MethodPost, "/admission/register", &buf)
+				req.Header.Add("Content-Type", `application/json`)
+				router.ServeHTTP(recorder, req)
+				Expect(recorder.Code).To(Equal(http.StatusOK))
+
+				var device models.Device
+				err = json.Unmarshal(recorder.Body.Bytes(), &device)
+				Expect(err).ShouldNot(HaveOccurred())
+				Expect(device.Features).To(HaveLen(len(features)))
+				Expect(device.Features).NotTo(ContainElement(HaveField("Name", "mode")))
+			})
+
+			It("should admit the mode sensor feature", func() {
+				By("with an existing profile with a valid apiToken")
+				err := testutils.InsertOne(ctx, collProfiles, profile)
+				Expect(err).ShouldNot(HaveOccurred())
+
+				features := []api.FeatureReq{
+					{
+						Type:   "controller",
+						Name:   "setpoint",
+						Enable: true,
+						Order:  1,
+						Unit:   "°C",
+						Spec: api.SpecReq{
+							Format: models.Float,
+							Min:    floatPtr(10),
+							Max:    floatPtr(30),
+							Step:   floatPtr(0.5),
+						},
+					},
+					{
+						Type:   "controller",
+						Name:   "tolerance",
+						Enable: true,
+						Order:  2,
+						Unit:   "°C",
+						Spec: api.SpecReq{
+							Format: models.Float,
+							Min:    floatPtr(0),
+							Max:    floatPtr(10),
+							Step:   floatPtr(0.5),
+						},
+					},
+					{
+						Type:   "sensor",
+						Name:   "temperature",
+						Enable: true,
+						Order:  3,
+						Unit:   "°C",
+						Spec:   validTemperatureSpec(),
+					},
+					{
+						Type:   "sensor",
+						Name:   "mode",
+						Enable: true,
+						Order:  4,
+						Unit:   "-",
+						Spec:   validThermostatModeSpec(),
+					},
+					{
+						Type:   "sensor",
+						Name:   "online",
+						Enable: true,
+						Order:  5,
+						Unit:   "-",
+						Spec:   validBoolSpec(),
+					},
+				}
+				thermostatRegisterReq := api.DeviceRegisterReq{
+					Mac:          "11:22:33:44:55:66",
+					Manufacturer: "ks89",
+					Model:        "thermostat",
+					APIToken:     profile.APIToken,
+					Features:     features,
+				}
+				var buf bytes.Buffer
+				err = json.NewEncoder(&buf).Encode(thermostatRegisterReq)
+				Expect(err).ShouldNot(HaveOccurred())
+
+				recorder := httptest.NewRecorder()
+				req := httptest.NewRequest(http.MethodPost, "/admission/register", &buf)
+				req.Header.Add("Content-Type", `application/json`)
+				router.ServeHTTP(recorder, req)
+				Expect(recorder.Code).To(Equal(http.StatusOK))
+
+				var device models.Device
+				err = json.Unmarshal(recorder.Body.Bytes(), &device)
+				Expect(err).ShouldNot(HaveOccurred())
+				Expect(device.Features).To(HaveLen(len(features)))
+
+				var modeFeature *models.Feature
+				for i := range device.Features {
+					if device.Features[i].Name == "mode" {
+						modeFeature = &device.Features[i]
+						break
+					}
+				}
+				Expect(modeFeature).NotTo(BeNil())
+				Expect(modeFeature.Type).To(Equal(models.Sensor))
+				Expect(modeFeature.Enable).To(BeTrue())
+				Expect(modeFeature.Order).To(Equal(4))
+				Expect(modeFeature.Unit).To(Equal("-"))
+				Expect(modeFeature.Spec.Format).To(Equal(models.Int))
+				Expect(*modeFeature.Spec.Min).To(Equal(float64(-1)))
+				Expect(*modeFeature.Spec.Max).To(Equal(float64(2)))
+				Expect(*modeFeature.Spec.Step).To(Equal(float64(1)))
 			})
 		})
 

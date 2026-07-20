@@ -90,6 +90,7 @@ func TestRegisterSensorsViaHTTPRegistersEverySensor(t *testing.T) {
 	sensors := []models.Feature{
 		testSensorFeature(),
 		{UUID: "feature-2", Name: "humidity"},
+		{UUID: "feature-3", Name: "mode"},
 	}
 
 	err := handler.registerSensorsViaHTTP(testDevice(), sensors, testProfile(), "token")
@@ -97,11 +98,11 @@ func TestRegisterSensorsViaHTTPRegistersEverySensor(t *testing.T) {
 	if err != nil {
 		t.Fatalf("registerSensorsViaHTTP() error = %v", err)
 	}
-	if len(registered) != 2 {
-		t.Fatalf("registered calls = %d, want 2", len(registered))
+	if len(registered) != 3 {
+		t.Fatalf("registered calls = %d, want 3", len(registered))
 	}
-	if registered[0] != "/register/temperature" || registered[1] != "/register/humidity" {
-		t.Fatalf("registered paths = %#v, want temperature and humidity", registered)
+	if registered[0] != "/register/temperature" || registered[1] != "/register/humidity" || registered[2] != "/register/mode" {
+		t.Fatalf("registered paths = %#v, want temperature, humidity, and mode", registered)
 	}
 }
 
